@@ -183,9 +183,12 @@ class SwarmBrain:
         self.registry = DynamicRegistry()            # Runtime tool registration
 
         # ── Security ──
-        # SecureVault expects a hex-encoded key
-        vault_hex = os.getenv("SECURE_VAULT_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-        self.vault = SecureVault(vault_hex)           # AES-GCM encryption
+        vault_hex = os.getenv("SECURE_VAULT_KEY")
+        if vault_hex:
+            self.vault = SecureVault(vault_hex)  # AES-GCM encryption
+        else:
+            self.vault = None  # No vault key configured — encryption disabled
+            print("⚠️ SECURE_VAULT_KEY not set — SecureVault disabled")
         # AgentIdentity has no Python constructor — use TrustStore only
         self.identity = None
 

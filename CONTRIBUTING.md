@@ -1,25 +1,61 @@
 # Contributing to OpenRustSwarm
 
-First off, thank you for considering contributing to OpenRustSwarm! It's people like you that make OpenRustSwarm such a powerful tool.
-
-## Technical Standards
-- **Performance First**: All core logic must be implemented in Rust with a focus on zero-copy and cache-locality.
-- **Safety**: No `unsafe` blocks without extensive justification and unit testing.
-- **Reproducibility**: New features must include a verification script compatible with `verify_all_benchmarks.py`.
-
-## How to Contribute
-1. **Reporting Bugs**: Use GitHub Issues. Include your OS, Rust version, and a minimal reproducible example (MRE).
-2. **Feature Requests**: Open an issue to discuss the architectural impact before submitting code.
-3. **Pull Requests**:
-   - Branch from `main`.
-   - Ensure `cargo fmt` and `cargo test` pass.
-   - Tag your PR with `enhancement`, `bug`, or `performance`.
+We want your contributions. Here's how to get started.
 
 ## Development Setup
+
+### Rust Engine
 ```bash
 git clone https://github.com/juyterman1000/openrustswarm.git
 cd openrustswarm/openrustswarm-core
 cargo build --release
+cargo test
 ```
 
-Thank you for being part of the swarm!
+### Web Dashboard
+```bash
+cd web
+npm install
+cp .env.local.example .env.local  # Add your GEMINI_API_KEY
+npm run dev
+# → http://localhost:3000
+```
+
+### Python Server
+```bash
+cd server
+pip install -r requirements.txt
+python main.py
+```
+
+## Good First Issues
+
+These are easy entry points — each is a self-contained change:
+
+| Task | File(s) | Difficulty |
+|------|---------|------------|
+| Add a new data feed (e.g. earthquake, stock index) | `web/app/api/feeds/` | 🟢 Easy |
+| New swarm color mode | `web/lib/color-maps.ts` | 🟢 Easy |
+| New narrator personality | `web/app/api/swarm/narrate/route.ts` | 🟢 Easy |
+| Mobile-responsive dashboard | `web/app/page.tsx`, `web/app/globals.css` | 🟡 Medium |
+| WebAudio sound design for R₀ tension | `web/hooks/`, new hook | 🟡 Medium |
+| Add a 7th pheromone channel | `openrustswarm-core/src/swarm/` | 🔴 Hard |
+| New heritable gene | `openrustswarm-core/src/evolution/` | 🔴 Hard |
+
+## Technical Standards
+
+- **Rust**: `cargo fmt` and `cargo test` must pass. No `unsafe` without justification.
+- **Web**: `npx next build` must pass with zero errors.
+- **Performance**: Core engine changes must not regress throughput. Benchmark before/after.
+
+## Pull Request Process
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feat/your-feature`)
+3. Make your changes
+4. Verify builds (`cargo test` for Rust, `npx next build` for web)
+5. Open a PR with a clear description
+
+## Code of Conduct
+
+Be respectful. Be constructive. We're building something alive.

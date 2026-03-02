@@ -12,6 +12,10 @@
   [![Scale: 10M Agents](https://img.shields.io/badge/scale-10M%20agents-green.svg)](https://github.com/juyterman1000/openrustswarm)
 </div>
 
+<p align="center">
+  <img src="demo/hero_banner.png" alt="OpenRustSwarm — BTC, ETH, SOL organism clusters reacting to live market data" width="800">
+</p>
+
 ---
 
 ## What is this?

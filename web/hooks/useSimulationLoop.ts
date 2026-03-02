@@ -59,11 +59,12 @@ export function useSimulationLoop(
       engine.tick();
       const tickMs = performance.now() - t0;
 
-      // Auto-inject surprise shockwave at tick 5
+      // Auto-inject surprise shockwave at tick 5 to kickstart the simulation
       const tick = Number(engine.get_tick());
       if (!autoInjectedRef.current && tick >= 5) {
         autoInjectedRef.current = true;
-        engine.inject_surprise(worldSize / 2, worldSize / 2, 80, 0.9);
+        // Radius and intensity scale with worldSize
+        engine.inject_surprise(worldSize / 2, worldSize / 2, worldSize * 0.08, 0.9);
       }
 
       // FPS tracking
