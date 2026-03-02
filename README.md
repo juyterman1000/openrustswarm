@@ -19,6 +19,14 @@
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org/)
   [![Next.js](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
+
+  <br/><br/>
+
+  **If these organisms feel more alive than your dashboard, give us a star.**
+
+  <a href="https://github.com/juyterman1000/openrustswarm/stargazers">
+    <img src="https://img.shields.io/github/stars/juyterman1000/openrustswarm?style=social&label=Star" alt="GitHub Stars">
+  </a>
 </div>
 
 <p align="center">
@@ -77,6 +85,37 @@ BENCHMARK COMPLETE (10M scale proven)
 ```
 
 ---
+
+## The Secret Sauce: Why This Is Hard
+
+Most browser simulations fake it. We don't.
+
+- **Zero-Copy Spatial Hash**: We use a `mmap`-backed spatial grid. Neighbor lookups are $O(1)$ and never cross the WASM/JS bridge during the heavy lift.
+- **SIRS Epidemiology Integrated**: We didn't just add a "health" bar. We implemented a Susceptible-Infected-Recovered-Susceptible model where "Surprise" is the pathogen. Volatility breeds infection.
+- **Darwinian Genetics**: Each organism has a 256-bit genome. When they reproduce, they perform real crossover and point mutations. The swarm you see after 1 hour is genetically distinct from the one you started with.
+- **Ebbinghaus Memory Decay**: Organisms have a "Memory Buffer" that follows the forgetting curve. They are highly reactive to new shocks but become habituated to constant volatility.
+
+---
+
+## The Manifesto: Organic vs. Artificial Data
+
+Dashboards are for post-mortems. Swarms are for *life*.
+
+We believe the next generation of AI agents shouldn't "read" data; they should "feel" it. OpenRustSwarm is the sensory Subconscious. It processes millions of signals and condenses them into a single, intuition-based state.
+
+*Don't ask the agent what the price is. Ask the agent how the swarm feels.*
+
+---
+
+## 🌟 Star Milestones
+
+Help us build the most advanced organic sensory system on Earth.
+
+- **500 Stars**: **The Sound of Tension** — WebAudio module that generates harmonic chords based on the R0 value.
+- **1,000 Stars**: **The Self-Evolving Genome** — LLM-driven genetic synthesis where organisms write their own Rust trait implementations.
+- **2,500 Stars**: **Multi-Environment Swarms** — Cross-instance pheromone diffusion via WebSockets.
+- **5,000 Stars**: **The Sovereign Watcher** — A fully autonomous agent that lives *inside* the swarm and protects it from "market death."
+
 
 ## Architecture
 
