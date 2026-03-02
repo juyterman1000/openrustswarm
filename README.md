@@ -64,16 +64,16 @@ graph TD
 ### Benchmark Evidence
 `python3 test_10m_scale.py`
 ```text
-🚀 INITIALIZING SMART SCALE TEST: 10,000,000 TOTAL AGENTS
+INITIALIZING SMART SCALE TEST: 10,000,000 TOTAL AGENTS
    [LOD Configuration: 1,000,000 Active + 9,000,000 Dormant]
-✅ Initialization successful in 1.42s
+Initialization successful in 1.42s
    Memory Usage: 3710.24 MB (3.71 GB)
    Footprint per 10M Swarm: 0.37 KB/agent
 
-⚡ EXECUTING TICKS...
+EXECUTING TICKS...
    Average Tick Time: 0.0482s
    Throughput: 20,746,887 agents/sec
-🏁 BENCHMARK COMPLETE (10M scale proven)
+BENCHMARK COMPLETE (10M scale proven)
 ```
 
 ---
