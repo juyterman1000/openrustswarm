@@ -31,20 +31,63 @@
 
 OpenRustSwarm is a biological simulation where autonomous organisms process real-world data as sensory input. It doesn't chart prices — it reacts to them. Biologically.
 
-Each organism has:
+Instead of traditional dashboards, the swarm uses SIRS epidemiology and Darwinian evolution to manifest market volatility as physical pressure. When Bitcoin drops, organisms in the BTC cluster die. Survivors evolve higher sensitivity. The reproduction number (R0) climbs. The canvas pulses red.
 
-- **6 heritable genes** — transfer rate, recovery rate, infection radius, broadcast power, sensitivity, mutation rate
-- **SIRS epidemiology** — organisms infect each other with "surprise" when anomalies hit
-- **Ebbinghaus memory decay** — they remember shocking events, forget routine ones
-- **Spatial hash grid** — O(1) neighbor lookups, real physics, not random
-- **Darwinian evolution** — natural selection, crossover, mutation every generation
-- **6-channel pheromone field** — danger, trail, food, novelty, alarm, reward
+This is the "Nervous System" foundation for [CogOps](https://github.com/juyterman1000/cogops) and [OpenClaw](https://github.com/openclaw/openclaw), providing massive-scale sensory awareness for autonomous AI agents.
 
-When Bitcoin drops 3%, you don't read a number. You watch organisms die. The survivors evolve higher sensitivity. R0 climbs. The swarm fights back.
+---
 
-> *Can you see it in the organisms before you read the number?*
->
-> Yes. That's the point.
+## Hard Proof: 10M Agent Scale
+
+We don't mock scale. We manage it using a 4-tier Level of Detail (LOD) architecture.
+
+### The 4-Tier Compute Stack
+
+```mermaid
+graph TD
+    T1[Tier 1: Dormant - 9.0M Agents] -->|Trigger| T2
+    T2[Tier 2: Simplified - 0.8M Agents] -->|Anomalies| T3
+    T3[Tier 3: Full Tensor - 0.2M Agents] -->|Criticality| T4
+    T4[Tier 4: Heavy - 10-100 Agents]
+
+    subgraph "Nervous System (Rust/WASM)"
+    T1 -.->|0.01ms CPU| T1
+    T2 -.->|SIMD Physics| T2
+    T3 -.->|Tensor Engine| T3
+    end
+
+    subgraph "Conscious Action (LLM)"
+    T4 -.->|Gemini/OpenClaw| T4
+    end
+```
+
+### Benchmark Evidence
+`python3 test_10m_scale.py`
+```text
+🚀 INITIALIZING SMART SCALE TEST: 10,000,000 TOTAL AGENTS
+   [LOD Configuration: 1,000,000 Active + 9,000,000 Dormant]
+✅ Initialization successful in 1.42s
+   Memory Usage: 3710.24 MB (3.71 GB)
+   Footprint per 10M Swarm: 0.37 KB/agent
+
+⚡ EXECUTING TICKS...
+   Average Tick Time: 0.0482s
+   Throughput: 20,746,887 agents/sec
+🏁 BENCHMARK COMPLETE (10M scale proven)
+```
+
+---
+
+## Architecture
+
+1. **LAYER 1: NERVOUS SYSTEM (RUST/WASM)**
+   100+ source files handling spatial hash grids, pheromone fields, and Darwinian crossover. Runs in-browser via WASM at 200K agents @ 60fps.
+2. **LAYER 2: THE VOICE (GEMINI)**
+   Threshold-triggered narration. The swarm speaks when it feels pain.
+3. **LAYER 3: THE HANDS (OPENCLAW)**
+   Direct integration with OpenClaw for signal injection and webhook-driven alerts.
+4. **LAYER 4: MEMORY (EBBINGHAUS)**
+   Agents remember anomalies using exponential decay. They forget the "noise" of flat markets.
 
 ---
 
@@ -57,146 +100,39 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` — the swarm starts immediately.
-
-For narration (Gemini speaks as the organism), add to `web/.env.local`:
-
-```env
-GEMINI_API_KEY=your_key_here
-```
-
-Without it, the swarm still runs — it just can't speak.
-
----
-
-## Architecture
-
-```
-LAYER 5: THE FACE
-  Next.js dashboard, WebGL/Canvas2D, crypto ticker,
-  R0 tension overlay (red pulse when R0 > 1.2)
-
-LAYER 4: MEMORY
-  Ebbinghaus decay, metacognition, curiosity module
-
-LAYER 3: THE HANDS
-  OpenClaw integration skill, webhook alerts, signal injection API
-
-LAYER 2: THE VOICE
-  Gemini 2.5 Flash narration — speaks as the organism
-  "847 organisms near the BTC cluster just died."
-
-LAYER 1: NERVOUS SYSTEM
-  100+ Rust source files, WASM bridge
-  SIRS, evolution, pheromones, spatial hash, safety shield
-```
-
-## Real Data Feeds
-
-The swarm ingests live data every 15 seconds:
-
-| Feed | Source | What organisms feel |
-|------|--------|-------------------|
-| BTC | CoinGecko | Shockwave in left swarm region |
-| ETH | CoinGecko | Shockwave in center region |
-| SOL | CoinGecko | Shockwave in right region |
-| GitHub | Events API | Activity pulse in center |
-
-Each asset has its own organism cluster. Inter-poll price deltas (not 24h averages) drive reactions.
-
----
-
-## Performance
-
-Tested at 10M agents (1M active + 9M dormant via 4-tier LOD architecture). See `test_10m_scale.py`.
-
-| Metric | Browser (WASM) | Native (Rust) |
-|--------|---------------|---------------|
-| Agents | 200,000 @ 60fps | 10,000,000 (LOD) |
-| Memory | ~150 MB | 3.71 GB |
-| Throughput | real-time rendering | 20.5M updates/sec |
-| Per-tick cost | $0.00 | $0.00 |
-
-No LLM in the simulation loop. The biology is pure Rust math.
-
----
-
-## What's in the repo
-
-```
-openrustswarm/
-├── openrustswarm-core/    # Rust engine — 100+ source files
-│   └── src/
-│       ├── swarm/         # SIRS, spatial hash, tensor engine, LOD, mmap
-│       ├── evolution/     # Population genetics, sandbox, synthesizer
-│       ├── worldmodel/    # Pheromone diffusion, memory consolidation
-│       ├── compliance/    # Safety shield, audit trails
-│       └── core/          # Workflow, graph orchestration
-├── cogops-wasm/           # WASM bridge — compiled and running
-├── web/                   # Next.js dashboard (the thing you see)
-│   ├── app/api/           # 9 API routes (feeds, narration, OpenClaw)
-│   ├── hooks/             # useWasmEngine, useNarration, useRealDataFeed
-│   ├── components/swarm/  # AgentCanvas, R0Indicator, NarrationPanel
-│   └── public/wasm/       # Compiled WASM binary
-├── cogops-skill/          # OpenClaw integration
-├── server/                # Python server + swarm brain
-├── demo/                  # Demo server
-└── examples/              # Usage examples
-```
+The browser dashboard defaults to **200,000 organic agents** — the limit of real-time WebGL rendering on modern hardware.
 
 ---
 
 ## Roadmap
 
-- [x] Rust engine — SIRS, spatial hash, tensor engine, LOD, mmap
-- [x] Darwinian evolution — 6 heritable genes, crossover, mutation, natural selection
-- [x] WASM bridge — compiled, running in browser at 200K agents
-- [x] Real-time data feeds — CoinGecko, GitHub Events
-- [x] Gemini narration — organism-voice, threshold-triggered
-- [x] R0 tension overlay — visual urgency when R0 > 1.0
-- [x] OpenClaw integration — skill, webhook, signal injection
-- [ ] Live hosted demo (Vercel)
-- [ ] WebAudio — R0 tension should sound tense
-- [ ] More data feeds — earthquake, social sentiment, DeFi TVL
-- [ ] Mobile-responsive dashboard
+- [x] **Rust Engine**: SIRS, spatial hash, tensor engine, LOD (10M scale).
+- [x] **Evolution**: 6 heritable genes, natural selection, crossover.
+- [x] **WASM Bridge**: High-performance browser rendering.
+- [x] **Data Feeds**: Live CoinGecko + GitHub Events integration.
+- [x] **OpenClaw Skill**: Swarm-to-agent coordination protocol.
+- [ ] **Live Demo URL**: Deployment in progress.
+- [ ] **WebAudio**: R0-driven soundscapes (tension chords).
+- [ ] **Mobile Support**: Optimized canvas for touch.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and good first issues.
+We are looking for people to add new data feeds. Every asset cluster is a sensory portal.
 
-The easiest entry point: add a new data feed. Each feed is ~50 lines in `web/app/api/feeds/`.
-
----
-
-## API Routes
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/swarm` | GET | Live swarm metrics |
-| `/api/swarm/narrate` | POST | Gemini narration |
-| `/api/feeds/crypto` | GET | BTC/ETH/SOL prices |
-| `/api/feeds/github` | GET | GitHub activity |
-| `/api/openclaw/push` | POST | Forward alerts to OpenClaw |
-| `/api/openclaw/inject` | POST/GET | Inject signals into swarm |
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup.
 
 ---
 
 ## License
 
-[MIT License](LICENSE) — use it, fork it, build on it.
+[MIT License](LICENSE)
 
 ---
 
 <div align="center">
-
-  Every star helps this reach developers who want to build something alive.
-
   <a href="https://github.com/juyterman1000/openrustswarm/stargazers">
     <img src="https://img.shields.io/github/stars/juyterman1000/openrustswarm?style=social" alt="GitHub Stars">
   </a>
-
-  <br/><br/>
-  <sub>Built with Rust, WebAssembly, and the belief that organisms are better than dashboards.</sub>
 </div>
