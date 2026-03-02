@@ -229,7 +229,7 @@ fn cogops_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<evolution::Insight>()?;
     m.add_class::<evolution::CuriosityModule>()?;
 
-    // v12 Swarm Engine
+    // v12 Swarm Engine — Nervous System
     m.add_class::<swarm::SwarmConfig>()?;
     m.add_class::<swarm::TensorSwarm>()?;
     m.add_class::<swarm::tensor_engine::TensorSwarm>()?;
@@ -238,6 +238,12 @@ fn cogops_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<swarm::ProductionTensorSwarm>()?;
     m.add_class::<swarm::DormantAgent>()?;
     m.add_class::<swarm::SimplifiedPool>()?;
+
+    // Nervous System — Signal Ingestion & Spatial Awareness
+    m.add_class::<swarm::watcher::SwarmWatcher>()?;
+    m.add_class::<swarm::watcher::Signal>()?;
+    m.add_class::<swarm::spatial::GridMap>()?;
+    m.add_class::<swarm::py_api::PySwarmEngine>()?;
 
     // Security (Encryption)
     m.add_class::<security::aes::SecureVault>()?;

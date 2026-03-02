@@ -1,16 +1,27 @@
-import openrustswarm_core as ors
-from openrustswarm_core import *
+"""
+OpenRustSwarm — High-level Python API wrapping the Rust cogops_core engine.
+
+These classes provide Pythonic interfaces over the compiled Rust bindings.
+All computation happens in the Rust engine — zero Python fallbacks.
+"""
+import cogops_core as ors
+from cogops_core import ProductionTensorSwarm, SharedMemoryStore, AgentGraphPy, HistoryBuffer
 
 
 class Swarm(ProductionTensorSwarm):
-    pass
+    """High-level swarm interface with default configuration."""
+    def __init__(self, agent_count=10000, world_config=None, config=None):
+        super().__init__(agent_count=agent_count, world_config=world_config, config=config)
 
 
 class Memory(SharedMemoryStore):
-    pass
+    """High-level memory interface wrapping Rust SharedMemoryStore."""
+    def __init__(self):
+        super().__init__()
 
 
 class Runtime(AgentGraphPy):
+    """Execution runtime wrapping the Rust AgentGraphPy."""
     def execute(self, task, timeout=10.0):
         return self.spawn_task(task.prompt, HistoryBuffer(), agent_name="DefaultAgent")
 

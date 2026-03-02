@@ -137,7 +137,7 @@ pub fn run_unified_simd_physics(pool: &mut SwarmPool, kernel: &UnifiedKernel, ph
     // Since memory is sorted by spatial hash, chunks of agents belong to same or nearby cells.
     
     let chunk_size = 256;
-    let n = pool.n_agents;
+    let _n = pool.n_agents;
     
     // We cannot easily borrow disjoint mutable slices of SoA arrays dynamically in safe rust without 
     // using `par_chunks_mut()` on zipped iterators. 

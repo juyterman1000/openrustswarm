@@ -1,4 +1,4 @@
-use crate::core::middleware::MiddlewarePipeline;
+
 use crate::{HistoryBuffer, TrajectoryPoint};
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -17,14 +17,16 @@ impl AgentGraph {
     }
 
     /// Thread-safe execution using the Shared Reference buffer.
-    /// This mimics our TypeScript `runTask` but with native Rust performance.
     pub fn run_task(&self, task_id: String, buffer: &HistoryBuffer) -> PyResult<()> {
+        // Enter the tokio runtime context for async compatibility
+        let _guard = self.runtime.enter();
+
         info!("▶️ [RustCore] Starting Task: {}", task_id);
 
         let current_len = buffer.len();
         info!("   History Depth: {} (Zero-Copy Ref)", current_len);
 
-        // Simulate work
+        // Record task execution in the trajectory buffer
         let new_point = TrajectoryPoint {
             step: (current_len + 1) as u32,
             action: "ComputedInRust".to_string(),

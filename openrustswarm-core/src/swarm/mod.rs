@@ -14,8 +14,10 @@ pub mod master_pipeline;
 pub mod pheromone;
 pub mod py_api;
 pub mod mmap_pool;
+pub mod watcher;
 pub mod scale_test;
 pub mod criticality_test;
+pub mod evolution_test;
 
 use pyo3::prelude::*;
 
@@ -23,6 +25,7 @@ pub use promoter::PromotionLogic;
 pub use spatial::GridMap;
 pub use tensor_engine::TensorSwarm;
 pub use lod::{DormantAgent, SimplifiedPool, ProductionTensorSwarm};
+pub use master_pipeline::{PropagationConfig, SwarmEvolutionConfig};
 
 /// Configuration for the Swarm Engine
 #[derive(Clone, Debug)]

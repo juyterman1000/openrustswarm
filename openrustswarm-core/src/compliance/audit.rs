@@ -84,7 +84,7 @@ impl AuditLogger {
         let idx = events.len();
         events.push(event);
 
-        // Index by agent_id (treating as user_id for now)
+        // Index by agent_id for per-agent audit retrieval
         let mut index = self.user_index.write();
         index.entry(agent_id.to_string()).or_default().push(idx);
 

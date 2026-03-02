@@ -181,7 +181,19 @@ impl PopulationEngine {
             }
         }
 
-        // Mutate Tools (Skillset) -- simple toggle for demo
-        // In real system, this would add/remove tools from registry
+        // Mutate Tools (Skillset): randomly add or remove a tool capability
+        let available_tools = [
+            "web_search", "code_execution", "math_solver",
+            "data_analysis", "document_retrieval", "api_caller",
+        ];
+        if rng.gen::<f32>() < 0.15 {
+            // 15% chance: toggle a random tool
+            let tool = available_tools.choose(&mut rng).unwrap_or(&"web_search");
+            if genome.tools.contains(&tool.to_string()) {
+                genome.tools.retain(|t| t != *tool);
+            } else {
+                genome.tools.push(tool.to_string());
+            }
+        }
     }
 }

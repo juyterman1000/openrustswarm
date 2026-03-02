@@ -65,6 +65,7 @@ impl AgentBenchmark {
 /// Internal helper function (not exposed to Python)
 fn evaluate_single_task(task: &EvalTask) -> (bool, String) {
     let shield = PredictiveSafetyShield::new(0.5);
+    info!("  Evaluating: {} — {}", task.task_id, task.prompt);
 
     // Pre-load failure pattern if dangerous
     if task.dangerous {

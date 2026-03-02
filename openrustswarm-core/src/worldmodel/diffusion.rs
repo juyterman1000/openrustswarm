@@ -93,7 +93,7 @@ impl DiffusionPredictor {
         predictions
     }
 
-    /// Predict sequence (just 1 step for now)
+    /// Single-step rollout using 3 diffusion samples for uncertainty estimation
     pub fn rollout(&self, current: &LatentState, action_encoding: Vec<f32>) -> Prediction {
         // For rollout, we take 3 diffusion samples to capture uncertainty
         let samples = self.diffuse_predict(current, action_encoding, 3);

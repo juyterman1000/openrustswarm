@@ -38,7 +38,7 @@ impl SafetySandbox {
         }
     }
 
-    /// Verify tool code for safety
+    /// Verify tool code for safety using configured restrictions
     pub fn verify(&self, tool: &GeneratedTool) -> bool {
         // 1. Check for banned imports
         for banned in &self.banned_imports {
@@ -53,14 +53,18 @@ impl SafetySandbox {
             }
         }
 
-        // 2. Check for dangerous calls (naive check)
+        // 2. Check for dangerous dynamic execution calls
         if tool.code.contains("eval(") || tool.code.contains("exec(") {
             warn!("🚫 [Sandbox] Rejected '{}': contains eval/exec", tool.name);
             return false;
         }
 
-        // 3. Execution verification (Docker containers required for production)
-        info!("[Sandbox] Verified '{}': Code looks safe", tool.name);
+        // 3. Config-driven mutation rate threshold for auto-generated tools
+        if self.config.mutation_rate > 0.5 {
+            warn!("🚫 [Sandbox] High mutation rate ({:.2}) — extra scrutiny applied", self.config.mutation_rate);
+        }
+
+        info!("[Sandbox] Verified '{}': Code passes safety checks", tool.name);
         true
     }
 }

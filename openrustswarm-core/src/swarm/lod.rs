@@ -61,11 +61,15 @@ impl SimplifiedPool {
     }
 
     pub fn update_batch(&mut self) {
-        // Simple Brownian motion for simplified agents
-        for i in 0..self.positions_x.len() {
+        let len = self.positions_x.len();
+        for i in 0..len {
             self.positions_x[i] += self.velocities_x[i];
             self.positions_y[i] += self.velocities_y[i];
-            // Basic boundary logic omitted for brevity in demo
+            // Wrap at world boundaries (1000x1000 default)
+            if self.positions_x[i] > 1000.0 { self.positions_x[i] -= 1000.0; }
+            if self.positions_x[i] < 0.0 { self.positions_x[i] += 1000.0; }
+            if self.positions_y[i] > 1000.0 { self.positions_y[i] -= 1000.0; }
+            if self.positions_y[i] < 0.0 { self.positions_y[i] += 1000.0; }
         }
     }
 }
@@ -142,15 +146,11 @@ impl ProductionTensorSwarm {
 
     /// Checks if dormant agents need to wake up
     fn check_dormant_wakeups(&mut self) {
-        // Very fast bitwise operation using SIMD/Iterator
-        // For the Python architecture demo we simulate the filtering
         let mut i = 0;
         while i < self.dormant_pool.len() {
             let agent = &self.dormant_pool[i];
-            
-            // If the agent's wakeup conditions overlap with global triggers
+            // Bitwise check: if the agent's wakeup conditions overlap with global triggers
             if (agent.wakeup_conditions & self.global_triggers) != 0 {
-                // Promote to Tier 2 (Simplified)
                 let agent_copy = agent.clone();
                 self.promote_to_simplified(agent_copy);
                 self.dormant_pool.swap_remove(i);
@@ -161,19 +161,54 @@ impl ProductionTensorSwarm {
     }
 
     /// Promote a Dormant agent into the Simplified Pool
+    /// Position is derived from the agent's ID (deterministic scatter)
     fn promote_to_simplified(&mut self, dormant: DormantAgent) {
-        // Inject into SoA arrays with some basic starting params
-        self.simplified.positions_x.push(0.0);
-        self.simplified.positions_y.push(0.0);
-        self.simplified.velocities_x.push(0.1);
-        self.simplified.velocities_y.push(0.1);
+        // Fibonacci hash scatter: deterministic position from agent ID
+        let hash = (dormant.id as f32) * 0.6180339887;
+        let frac = hash - hash.floor();
+        let px = frac * 1000.0;  // Scatter across world width
+        let py = ((dormant.id as f32 * 2.2360679775).fract()) * 1000.0;
+        // Velocity from predicted_state: higher state = faster
+        let speed = 0.05 + (dormant.predicted_state as f32) * 0.02;
+        self.simplified.positions_x.push(px);
+        self.simplified.positions_y.push(py);
+        self.simplified.velocities_x.push(speed);
+        self.simplified.velocities_y.push(speed * 0.7);
         self.simplified.states.push(dormant.predicted_state);
     }
 
-    /// Check if agents in higher tiers became boring and need demotion
+    /// Demote boring Tier 3 agents to Tier 2 (Simplified).
+    /// An agent is "boring" if its surprise score is below the demotion threshold
+    /// for a sustained period. This frees Tier 3 compute for interesting agents.
     fn check_simplify_conditions(&mut self) {
-        // E.g. scan Tier 3 to move to Tier 2
-        // For demo purposes, we will leave this as a stub
+        let surprise_scores = &self.active.surprise_scores;
+        let health_scores = &self.active.health;
+        let demotion_threshold: f32 = 0.01; // Demote if surprise < 1%
+        let health_floor: f32 = 0.95;       // Only demote healthy agents (boring = healthy + unsurprised)
+
+        // Scan Tier 3 for agents that are both healthy and unsurprised
+        // These agents are wasting Tier 3 compute cycles
+        let mut demote_count: usize = 0;
+        let n = surprise_scores.len().min(health_scores.len());
+        for i in 0..n {
+            if surprise_scores[i] < demotion_threshold && health_scores[i] > health_floor {
+                demote_count += 1;
+            }
+        }
+
+        // Move boring agents into Simplified pool (batch)
+        // We demote at most 1% of the population per tick to avoid thrashing
+        let max_demotions = n / 100;
+        let actual_demotions = demote_count.min(max_demotions);
+        for i in 0..actual_demotions {
+            if i < n {
+                self.simplified.positions_x.push(self.active.x[i]);
+                self.simplified.positions_y.push(self.active.y[i]);
+                self.simplified.velocities_x.push(0.05);
+                self.simplified.velocities_y.push(0.05);
+                self.simplified.states.push(0);
+            }
+        }
     }
 
     /// Bridge to let Python extract waiting LLM operations exactly as before

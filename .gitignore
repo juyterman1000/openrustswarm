@@ -1,6 +1,12 @@
 # Node/JS
 node_modules/
 npm-debug.log*
+.next/
+web/.next/
+
+# Editor
+.vscode/
+.idea/
 
 # Python
 __pycache__/
@@ -14,16 +20,45 @@ Cargo.lock
 
 # Data / Temp
 *.log
-*.json
-*.txt
 .DS_Store
 
+# Model caches / generated
+.fastembed_cache/
+server/.fastembed_cache/
+*.onnx
+*.lock
+
+# Environment secrets (never commit)
+web/.env.local
+web/.env.production
+.env.local
+
 # =========================================================
-# INTERNAL FILES (not for public distribution)
+# ALLOWLIST — only these directories are tracked
+# =========================================================
+
+# Core engine (Rust)
+# openrustswarm-core/ — tracked
+
+# Web dashboard (Next.js)
+# web/ — tracked
+
+# CogOps Skill (OpenClaw integration)
+# cogops-skill/ — tracked
+
+# WASM bridge
+# cogops-wasm/ — tracked
+
+# Python server
+# server/ — tracked
+
+# Public assets
+# demo/, examples/, dist/ — tracked
+
+# =========================================================
+# EXCLUDED (internal / generated / one-off)
 # =========================================================
 openrustswarm/
-server/
-web/
 benchmarks/
 scripts/
 docs/
@@ -34,18 +69,6 @@ medieval_demo.py
 real_10k_log_swarm.py
 CODEBASE_AUDIT.md
 *.jsonl
-
-# =========================================================
-# ALLOWLIST
-# =========================================================
-!openrustswarm-core/
-!demo/
-!dist/
-!examples/
-!.github/
-!README.md
-!LICENSE
-!CONTRIBUTING.md
-!logo.svg
-!docker-compose.yml
-!verify_all_benchmarks.py
+server/diagnose_api.py
+server/verify_ui.py
+server/run_task_help.txt

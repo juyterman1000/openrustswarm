@@ -1,9 +1,10 @@
 import asyncio
 import json
+import os
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-import cogops_core as openrustswarm_internal
+import cogops_core
 
 app = FastAPI()
 
@@ -16,10 +17,10 @@ class DemoSession:
         self.running = True
 
     def reset(self):
-        # Initialize 1000 agents in a 1000x1000 grid
-        world_config = openrustswarm_internal.WorldModelConfig(ebbinghaus_decay_rate=0.1, grid_size=(1000, 1000))
-        self.swarm = cogops.ProductionTensorSwarm(agent_count=1000, world_config=world_config)
-        
+        # Initialize agents using Rust engine with proper config
+        world_config = cogops_core.WorldModelConfig(ebbinghaus_decay_rate=0.1, grid_size=(1000, 1000))
+        self.swarm = cogops_core.ProductionTensorSwarm(agent_count=1000, world_config=world_config)
+
         self.villages = []
         self.cities = []
         self.ambush_zones = []
@@ -109,7 +110,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif action == "shock":
                     session.apply_shock(payload["x"], payload["y"], payload.get("radius", 50.0))
         except WebSocketDisconnect:
-            pass
+            return  # WebSocket client disconnected, stop receiver
 
     receiver_task = asyncio.create_task(receive_commands())
 
@@ -130,5 +131,6 @@ async def websocket_endpoint(websocket: WebSocket):
         receiver_task.cancel()
 
 if __name__ == "__main__":
-    print("Starting CogOps Demo Server on http://0.0.0.0:8080/demo/")
-    uvicorn.run("demo_server:app", host="0.0.0.0", port=8080, workers=1)
+    port = int(os.getenv("DEMO_PORT", "8080"))
+    print(f"Starting CogOps Demo Server on http://0.0.0.0:{port}/demo/")
+    uvicorn.run("demo_server:app", host="0.0.0.0", port=port, workers=1)

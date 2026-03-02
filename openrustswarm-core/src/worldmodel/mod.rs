@@ -135,6 +135,11 @@ pub struct WorldModelConfig {
     #[pyo3(get, set)]
     pub ebbinghaus_decay_rate: f32,
 
+    /// Maximum consolidated memories per agent before forgetting pressure kicks in.
+    /// When exceeded, the two lowest-salience memories are merged into one.
+    #[pyo3(get, set)]
+    pub max_memories_per_agent: usize,
+
     #[pyo3(get, set)]
     pub grid_size: (usize, usize),
 }
@@ -142,13 +147,14 @@ pub struct WorldModelConfig {
 #[pymethods]
 impl WorldModelConfig {
     #[new]
-    #[pyo3(signature = (latent_dim = 768, context_window = 8, prediction_steps = 4, learning_rate = 0.001, ebbinghaus_decay_rate = 0.1, grid_size = (100, 100)))]
+    #[pyo3(signature = (latent_dim = 768, context_window = 8, prediction_steps = 4, learning_rate = 0.001, ebbinghaus_decay_rate = 0.1, max_memories_per_agent = 64, grid_size = (100, 100)))]
     pub fn new(
         latent_dim: usize,
         context_window: usize,
         prediction_steps: usize,
         learning_rate: f32,
         ebbinghaus_decay_rate: f32,
+        max_memories_per_agent: usize,
         grid_size: (usize, usize),
     ) -> Self {
         WorldModelConfig {
@@ -157,6 +163,7 @@ impl WorldModelConfig {
             prediction_steps,
             learning_rate,
             ebbinghaus_decay_rate,
+            max_memories_per_agent,
             grid_size,
         }
     }
@@ -171,7 +178,7 @@ impl WorldModelConfig {
 
 impl Default for WorldModelConfig {
     fn default() -> Self {
-        Self::new(768, 8, 4, 0.001, 0.1, (100, 100))
+        Self::new(768, 8, 4, 0.001, 0.1, 64, (100, 100))
     }
 }
 

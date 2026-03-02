@@ -23,16 +23,17 @@ impl ToolSynthesizer {
         }
     }
 
-    /// Simulate synthesis of a tool (In production, this calls an LLM)
+    /// Request tool synthesis via the configured LLM backend.
+    /// Returns an error if no LLM backend is active.
     pub fn synthesize(
         &self,
         name: String,
         _description: String,
         _implementation_hint: String,
     ) -> PyResult<GeneratedTool> {
-        info!("🧬 [Synthesizer] Requested generation for tool: '{}'", name);
+        info!("🧬 [Synthesizer] Requesting '{}' generation via backend: {}", name, self.model_name);
         Err(pyo3::exceptions::PyNotImplementedError::new_err(
-            "Tool synthesis requires an active LLM backend configuration and is disabled in this runtime."
+            format!("Tool synthesis requires an active LLM backend ('{}') and is disabled in this runtime.", self.model_name)
         ))
     }
 }

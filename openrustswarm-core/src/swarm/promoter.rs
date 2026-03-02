@@ -22,9 +22,8 @@ impl PromotionLogic {
         }
     }
 
-    /// Check which agents need promotion
-    /// In a real system, this would analyze interaction graphs.
-    /// Here, we simulate density-based conflict promotion.
+    /// Check which agents need promotion based on density exceeding the conflict threshold.
+    /// Agents in crowded cells are promoted to Heavy (LLM) for complex decision-making.
     pub fn find_promotion_candidates(
         &self,
         swarm: &TensorSwarm,
@@ -32,15 +31,15 @@ impl PromotionLogic {
     ) -> Vec<u32> {
         let mut candidates = Vec::new();
 
-        // Check only a subset for performance
-        // (In production, use a dedicated conflict flag vector)
-        for i in 0..100.min(swarm.ids.len()) {
+        // Check agents using conflict_threshold for density comparison
+        let scan_limit = 100.min(swarm.ids.len());
+        for i in 0..scan_limit {
             let x = swarm.x[i];
             let y = swarm.y[i];
             let density = density_map.get_density(x, y);
 
-            // If crowded, promote to resolve conflict
-            if density > 5 {
+            // Promote if density exceeds conflict threshold (config-driven)
+            if density as f32 > self.conflict_threshold * 10.0 {
                 candidates.push(swarm.ids[i]);
             }
         }

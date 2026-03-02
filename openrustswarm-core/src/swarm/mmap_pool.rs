@@ -96,10 +96,20 @@ pub struct MmapSwarmPool {
 
     // Cognitive state
     pub surprise: MmapArray<f32>,
+    pub refractory: MmapArray<f32>,
     pub health: MmapArray<f32>,
 
     // Spatial hashing metadata
     pub cell_index: MmapArray<u32>,
+
+    // Evolvable genome (per-agent behavioral parameters)
+    pub gene_decay: MmapArray<f32>,          // surprise decay rate [0.8, 0.99]
+    pub gene_transfer: MmapArray<f32>,       // surprise transfer rate [0.01, 0.3]
+    pub gene_refractory: MmapArray<f32>,     // refractory buildup rate [0.05, 0.8]
+    pub gene_danger_sense: MmapArray<f32>,   // danger pheromone sensitivity [0.0, 0.5]
+    pub gene_novelty_drive: MmapArray<f32>,  // novelty attraction weight [0.0, 0.8]
+    pub gene_speed: MmapArray<f32>,          // max velocity [0.5, 5.0]
+    pub generation: MmapArray<u32>,          // lineage counter
 }
 
 impl MmapSwarmPool {
@@ -115,12 +125,29 @@ impl MmapSwarmPool {
             vx: MmapArray::new(n_agents),
             vy: MmapArray::new(n_agents),
             surprise: MmapArray::new(n_agents),
+            refractory: MmapArray::new(n_agents),
             health: MmapArray::new(n_agents),
             cell_index: MmapArray::new(n_agents),
+            gene_decay: MmapArray::new(n_agents),
+            gene_transfer: MmapArray::new(n_agents),
+            gene_refractory: MmapArray::new(n_agents),
+            gene_danger_sense: MmapArray::new(n_agents),
+            gene_novelty_drive: MmapArray::new(n_agents),
+            gene_speed: MmapArray::new(n_agents),
+            generation: MmapArray::new(n_agents),
         };
 
         // Initialize health to 1.0 (alive)
         pool.health.par_fill(1.0);
+
+        // Initialize genes to PropagationConfig defaults
+        pool.gene_decay.par_fill(0.92);
+        pool.gene_transfer.par_fill(0.08);
+        pool.gene_refractory.par_fill(0.3);
+        pool.gene_danger_sense.par_fill(0.15);
+        pool.gene_novelty_drive.par_fill(0.2);
+        pool.gene_speed.par_fill(2.0);
+        // generation starts at 0 (zero-initialized by mmap)
 
         pool
     }
@@ -169,8 +196,16 @@ impl MmapSwarmPool {
         let mut new_vx = MmapArray::<f32>::new(n);
         let mut new_vy = MmapArray::<f32>::new(n);
         let mut new_surprise = MmapArray::<f32>::new(n);
+        let mut new_refractory = MmapArray::<f32>::new(n);
         let mut new_health = MmapArray::<f32>::new(n);
         let mut new_cell = MmapArray::<u32>::new(n);
+        let mut new_gene_decay = MmapArray::<f32>::new(n);
+        let mut new_gene_transfer = MmapArray::<f32>::new(n);
+        let mut new_gene_refractory = MmapArray::<f32>::new(n);
+        let mut new_gene_danger_sense = MmapArray::<f32>::new(n);
+        let mut new_gene_novelty_drive = MmapArray::<f32>::new(n);
+        let mut new_gene_speed = MmapArray::<f32>::new(n);
+        let mut new_generation = MmapArray::<u32>::new(n);
 
         // Sequential scatter — O(N) pass, memory-bandwidth bound
         for (new_idx, &old_idx) in indices.iter().enumerate() {
@@ -179,8 +214,16 @@ impl MmapSwarmPool {
             new_vx.as_mut_slice()[new_idx] = self.vx.as_slice()[old_idx];
             new_vy.as_mut_slice()[new_idx] = self.vy.as_slice()[old_idx];
             new_surprise.as_mut_slice()[new_idx] = self.surprise.as_slice()[old_idx];
+            new_refractory.as_mut_slice()[new_idx] = self.refractory.as_slice()[old_idx];
             new_health.as_mut_slice()[new_idx] = self.health.as_slice()[old_idx];
             new_cell.as_mut_slice()[new_idx] = self.cell_index.as_slice()[old_idx];
+            new_gene_decay.as_mut_slice()[new_idx] = self.gene_decay.as_slice()[old_idx];
+            new_gene_transfer.as_mut_slice()[new_idx] = self.gene_transfer.as_slice()[old_idx];
+            new_gene_refractory.as_mut_slice()[new_idx] = self.gene_refractory.as_slice()[old_idx];
+            new_gene_danger_sense.as_mut_slice()[new_idx] = self.gene_danger_sense.as_slice()[old_idx];
+            new_gene_novelty_drive.as_mut_slice()[new_idx] = self.gene_novelty_drive.as_slice()[old_idx];
+            new_gene_speed.as_mut_slice()[new_idx] = self.gene_speed.as_slice()[old_idx];
+            new_generation.as_mut_slice()[new_idx] = self.generation.as_slice()[old_idx];
         }
 
         // Swap in the sorted arrays
@@ -189,13 +232,21 @@ impl MmapSwarmPool {
         self.vx = new_vx;
         self.vy = new_vy;
         self.surprise = new_surprise;
+        self.refractory = new_refractory;
         self.health = new_health;
         self.cell_index = new_cell;
+        self.gene_decay = new_gene_decay;
+        self.gene_transfer = new_gene_transfer;
+        self.gene_refractory = new_gene_refractory;
+        self.gene_danger_sense = new_gene_danger_sense;
+        self.gene_novelty_drive = new_gene_novelty_drive;
+        self.gene_speed = new_gene_speed;
+        self.generation = new_generation;
     }
 
     /// Report approximate physical memory usage in MB.
     pub fn estimated_virtual_mb(&self) -> f64 {
-        let bytes_per_agent = 7 * mem::size_of::<f32>(); // 6 f32 + 1 u32
+        let bytes_per_agent = 15 * mem::size_of::<f32>(); // 13 f32 + 2 u32
         (self.n_agents * bytes_per_agent) as f64 / (1024.0 * 1024.0)
     }
 }

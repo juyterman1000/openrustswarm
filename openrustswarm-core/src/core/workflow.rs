@@ -97,14 +97,14 @@ impl ParallelAgent {
         for agent_name in self.sub_agents.clone() {
             // Cloned sub_agents to allow iteration and move agent_name
             info!("   🚀 Spawning: {}", agent_name);
-            let graph_clone = graph; // In reality you'd need an Arc or similar if graph is not Send
-                                             // Simplified for this prototype - in real production we use Arc<AgentGraph>
+            let graph_clone = graph; // Borrowed reference — pyo3 objects are !Send
 
             // Fork buffer for each branch (Zero-Copy)
             let branch_buffer = buffer.fork();
             let task_id_branch = format!("{}-{}", task_id, agent_name);
 
-            // Concurrent execution (logic simulated sequentially for sync wrapper)
+            // Execute in forked buffer — graph is !Send (pyo3 constraint), so tasks
+            // run on the calling thread with isolated state via buffer.fork()
             let _ =
                 graph_clone.run_task(task_id_branch, &branch_buffer, Some(agent_name.clone()))?;
 

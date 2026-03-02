@@ -298,6 +298,17 @@ impl TensorSwarm {
             let sum: f32 = self.surprise_scores.iter().sum();
             let mean = if self.surprise_scores.is_empty() { 0.0 } else { sum / self.surprise_scores.len() as f32 };
             dict.set_item("mean_surprise_score", mean).unwrap();
+
+            // Mean latent state norm (cognitive activity indicator)
+            let latent_norm: f32 = if self.latent_states.is_empty() {
+                0.0
+            } else {
+                let total: f32 = self.latent_states.iter()
+                    .map(|ls| ls.vector.iter().map(|v| v * v).sum::<f32>().sqrt())
+                    .sum();
+                total / self.latent_states.len() as f32
+            };
+            dict.set_item("mean_latent_norm", latent_norm).unwrap();
             
             dict.into()
         })
