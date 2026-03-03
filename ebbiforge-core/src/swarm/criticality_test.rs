@@ -121,7 +121,7 @@ mod tests {
 
     /// Evolution analysis: tracks gene drift under Darwinian selection.
     ///
-    /// Run: cargo test --release -p openrustswarm-core evolution_analysis -- --nocapture --ignored
+    /// Run: cargo test --release -p ebbiforge-core evolution_analysis -- --nocapture --ignored
     #[test]
     #[ignore]
     fn evolution_analysis() {

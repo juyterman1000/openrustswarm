@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 # ─── Import ALL dead Rust modules ─────────────────────────────────────
 try:
-    from cogops_core import (
+    from ebbiforge_core import (
         # Layer 1: Nervous System (Swarm Engine)
         ProductionTensorSwarm,     # 4-tier LOD swarm: Dormant→Simplified→Full→Heavy
         DormantAgent,              # Dormant tier agent

@@ -1,4 +1,4 @@
-import openrustswarm_core as ors
+import ebbiforge_core as ors
 import time
 import sys
 

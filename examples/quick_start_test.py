@@ -1,4 +1,4 @@
-import openrustswarm_core as ors
+import ebbiforge_core as ors
 
 # Initialize 1,000 agents
 swarm = ors.ProductionTensorSwarm(agent_count=1000)

@@ -6,7 +6,7 @@ import os
 sys.path.append(os.getcwd())
 
 try:
-    import openrustswarm_core as ors
+    import ebbiforge_core as ors
     from test_unsolved_problems import RESULTS as UNSOLVED_RESULTS
     import test_unsolved_problems
     import test_intelligence_vs_naive
@@ -26,7 +26,7 @@ def main():
     OPENRUSTSWARM OFFICIAL PERFORMANCE VERIFICATION
     ------------------------------------------------
     Targets: 8 Fundamental Benchmarks
-    Runtime: OpenRustSwarm (Rust-Backend)
+    Runtime: Ebbiforge (Rust-Backend)
     """)
 
     # 1. Intelligence vs Hashmap

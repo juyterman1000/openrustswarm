@@ -1,104 +1,241 @@
 <div align="center">
-  <img src="logo.svg" alt="OpenRustSwarm" width="280">
+  <img src="logo.svg" alt="Ebbiforge" width="280">
 
-  <h3>OpenRustSwarm</h3>
+  <h3>Ebbiforge</h3>
 
-  <p>A high-performance research substrate for large-scale agent simulations.</p>
+  <p><strong>The high-performance multi-agent framework.</strong><br>
+  100M agents in Rust. Selective LLM reasoning. Enterprise compliance built-in.</p>
 
-  [![CI](https://github.com/juyterman1000/openrustswarm/actions/workflows/ci.yml/badge.svg)](https://github.com/juyterman1000/openrustswarm/actions)
+  [![CI](https://github.com/juyterman1000/ebbiforge/actions/workflows/ci.yml/badge.svg)](https://github.com/juyterman1000/ebbiforge/actions)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org/)
-  [![Next.js](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
+  [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://python.org)
 </div>
 
 <p align="center">
-  <img src="demo/hero_banner.png" alt="OpenRustSwarm — BTC, ETH, SOL organism clusters reacting to live market data" width="800">
+  <img src="demo/hero_banner.png" alt="Ebbiforge — Multi-agent swarm reacting to live data" width="800">
 </p>
 
 ---
 
-## The Problem: Scaling Complexity in Agent Simulations
+## Why Ebbiforge?
 
-Most agent-based simulations struggle with the $O(N^2)$ neighbor lookup problem and high memory overhead per agent. When scaling to millions of entities, traditional object-oriented patterns or even standard Entity-Component-System (ECS) approaches often hit wall-clock or memory limits on consumer hardware.
+| | LangChain | CrewAI | **Ebbiforge** |
+|---|:---------:|:------:|:-----------------:|
+| **Agent scale** | ~50 | ~10 | **100,000,000** |
+| **Cost per step** | $0.01+ | $0.01+ | **$0.00** (Rust) |
+| **Compliance** | ❌ | ❌ | **PII + GDPR + Audit** |
+| **Belief provenance** | ❌ | ❌ | **Full chain** |
+| **World model** | ❌ | ❌ | **Learned dynamics** |
+| **Evolution** | ❌ | ❌ | **Darwinian genetics** |
 
-OpenRustSwarm is a research project exploring how to use **Level of Detail (LOD)** strategies—common in 3D rendering but less so in agent logic—to simulate up to 10,000,000 agents on a single workstation.
+**The key idea**: 99.99% of agents run in Rust at zero cost. Only when the swarm detects something interesting does an LLM get called. This is *selective reasoning* — the LLM is a consultant, not a worker.
 
-## Technical Strategy: 4-Tier LOD Architecture
+---
 
-We categorize agents by their "Criticality" and "Surprise Score" to determine how much compute resource they consume.
+## Installation
 
-```mermaid
-graph TD
-    T1[Tier 1: Dormant - 9.0M Agents] -->|State Trigger| T2
-    T2[Tier 2: Simplified - 0.8M Agents] -->|Anomaly Detection| T3
-    T3[Tier 3: Full Tensor - 0.2M Agents] -->|Critical Threshold| T4
-    T4[Tier 4: Heavy - 10-100 Agents]
+### From PyPI
 
-    subgraph "Nervous System (Rust Engine)"
-    T1 -.->|Packed Bitfields / mmap| T1
-    T2 -.->|SIMD-Optimized Physics| T2
-    T3 -.->|Tensor-Based Decision Logic| T3
-    end
-
-    subgraph "Conscious Action (Optional Integration)"
-    T4 -.->|LLM-Narrated / OpenClaw| T4
-    end
+```bash
+pip install ebbiforge
 ```
 
-### Key Optimizations
+### From Source (includes Rust engine)
 
-- **mmap-Backed Dormant Pool**: T1 agents are stored in a memory-mapped array with a 256-bit footprint per agent, minimizing the resident set size (RSS).
-- **Spatial Hash Grid**: We use a zero-copy spatial hash for $O(1)$ neighbor queries, avoiding expensive bridge-crossing between WASM and JavaScript in browser environments.
-- **SIRS Epidemiology**: Instead of basic "health," we use a Susceptible-Infected-Recovered system where "Surprise" from data volatility acts as the infectious agent.
-- **Darwinian Genetics**: A custom genetic crossover engine allows for emergent behavioral shifts over thousands of generations.
+```bash
+git clone https://github.com/juyterman1000/ebbiforge.git
+cd ebbiforge
+pip install maturin
+maturin develop --release
+```
 
----
-
-## Performance & Benchmarks
-
-We have verified a stable 10,000,000 agent simulation (1M active) on standard hardware with a throughput of **~20.7 Million updates per second**.
-
-Detailed methodology, test environment specs, and instructions to reproduce these numbers can be found in [BENCHMARKS.md](BENCHMARKS.md).
-
----
-
-## Use Cases
-
-1.  **Collective Intelligence Research**: Testing how high-frequency data shocks propagate through massive populations.
-2.  **Simulation Engineering**: A reference implementation for scaling PyO3/Rust simulations with `mmap`.
-3.  **Visualization Tech**: Stress-testing WebGL and Instanced Rendering in Next.js/WASM environments.
+> **Requirements**: Python 3.9+, Rust 1.75+ (for source builds)
 
 ---
 
 ## Quick Start
 
-```bash
-git clone https://github.com/juyterman1000/openrustswarm.git
-cd openrustswarm/web
-npm install
-npm run dev
+### Hello Swarm (5 lines)
+
+```python
+from ebbiforge import Agent, Swarm, Task
+
+swarm = Swarm()
+swarm.add(Agent(name="Researcher"))
+swarm.add(Agent(name="Analyst"))
+result = swarm.run(Task("Analyze emerging AI trends", pipeline=True))
+
+# Every claim tracked with source attribution
+provenance = swarm.get_belief_provenance(result)
+if provenance.has_unverified:
+    print("⚠️ Pipeline contains unverified claims!")
 ```
 
-*Note: The browser demo is limited to 200,000 agents to maintain 60fps on typical mobile/web hardware.*
+### 50K Agents with Selective Reasoning
+
+```python
+import ebbiforge_core as ebbi
+
+swarm = ebbi.TensorSwarm(agent_count=50_000,
+    world_config=ebbi.WorldModelConfig(ebbinghaus_decay_rate=0.1, grid_size=(200, 200)))
+
+for tick in range(1000):
+    swarm.tick()
+    scores = swarm.surprise_scores  # Per-agent surprise (0.0–1.0)
+    surprised = sum(1 for s in scores if s > 0.3)
+    if surprised / 50_000 > 0.05:  # 5% threshold
+        print(f"🧠 Tick {tick}: Anomaly! Call LLM for {surprised} agents")
+    # The other 995+ ticks? FREE. No LLM. Pure Rust.
+```
+
+### Connect Any Data Source
+
+```python
+from ebbiforge.connectors import HTTPPoller, Signal
+
+def parse(data: dict) -> list[Signal]:
+    return [Signal(source="my-api", value=data["metric"] / 100.0)]
+
+feed = HTTPPoller(url="https://my-api.com/data", transform=parse)
+```
+
+### Enterprise Compliance
+
+```python
+import ebbiforge_core as ebbi
+
+compliance = ebbi.ComplianceEngine()
+result = compliance.check_action("agent-1", "send_email", "SSN: 123-45-6789")
+# → BLOCKED: PII detected
+```
 
 ---
 
-## Roadmap
+## World Model Training
 
-- [x] **Rust Core**: Memory-mapped LOD system, spatial hash, and SIRS logic.
-- [x] **Evolution**: Genetic crossover and point mutation engine.
-- [x] **WASM Bridge**: High-frequency data injection from CoinGecko/GitHub.
-- [ ] **Methodology Paper**: A detailed write-up of the LOD strategy for agent simulations.
-- [ ] **WebAudio**: R0-driven harmonic chord synthesis.
-- [ ] **Cross-Instance Sync**: Pheromone field diffusion over WebSockets.
+Ebbiforge includes a **learned dynamics model** that predicts agent state transitions. The model learns causal structure from logged trajectories — no pre-trained weights needed.
+
+### Collect Trajectories & Train
+
+```python
+import ebbiforge_core as ebbi
+
+# 1. Create a global trajectory buffer (all agents log into ONE dataset)
+buf = ebbi.TrajectoryBuffer(capacity=100_000)
+
+# 2. Run the swarm, sample agent transitions each tick
+swarm = ebbi.TensorSwarm(agent_count=1_000_000)
+for tick in range(1000):
+    swarm.tick()
+    # Record (state_t, action_t, state_{t+1}) for sampled agents
+    # buf.record(state_vec, action_vec, next_state_vec)
+
+# 3. Train the dynamics model (AdamW, cosine LR, validation split)
+predictor = ebbi.AutoregressivePredictor()
+stats = predictor.train(
+    buf.to_json(),
+    epochs=100,
+    learning_rate=0.01,
+    batch_size=256,
+    val_split=0.1
+)
+
+# 4. Persist learned weights
+predictor.save_weights("world_model.safetensors")
+print(f"Final loss: {stats[-1].train_loss:.6f}")
+```
+
+### Architecture
+
+```
+state_t + action_t → [Linear + GELU] → [Residual + GELU] → [Linear] → state_{t+1}
+                      ↑ AdamW optimizer, cosine LR decay, early stopping
+```
+
+The model learns the **Markovian transition function**: `state_{t+1} = f(state_t, action_t)`. Neighbor interactions (surprise propagation, flocking, pheromone steering) are already encoded in each agent's state by the Rust engine.
+
+---
+
+## CLI
+
+```bash
+ebbiforge demo             # Interactive 10K agent demo
+ebbiforge benchmark        # Performance scaling 1K → 100K
+ebbiforge example hello    # Run a built-in example
+ebbiforge version          # System info
+```
+
+---
+
+## Architecture: Two-Tier Intelligence
+
+```
+┌────────────────────────────────────────────────┐
+│          Tier 2: Conscious Brain               │
+│  Python + LLM (Gemini)    EXPENSIVE, SMART     │
+│  ReAct loop + tool use    Called only on anomaly│
+├────────────────────────────────────────────────┤
+│          Tier 1: Nervous System                │
+│  Pure Rust (zero-cost)    FAST, FREE           │
+│  Spatial hash + SIRS      100K-100M agents     │
+│  Darwinian evolution      ~0.01ms per agent    │
+│  Learned world model      AdamW dynamics MLP   │
+└────────────────────────────────────────────────┘
+```
+
+Learn more: **[Architecture Guide](docs/architecture.md)** | **[Quick Start](docs/quickstart.md)**
+
+---
+
+## What's Inside
+
+### Core Engine (`ebbiforge-core/`)
+- **Agent Orchestration**: ReAct loop, handoffs, sequential/parallel/loop workflows
+- **Memory**: In-process (SharedMemory), Redis/Dragonfly (KV), Qdrant (vector)
+- **Swarm**: 100M agents via mmap, Fibonacci spatial hash, SIRS epidemiology, pheromones
+- **World Model**: Latent encoder (fastembed ONNX), autoregressive dynamics (Candle MLP), trajectory buffer
+- **Safety**: PredictiveSafetyShield, PII redaction, GDPR, rate limiting, policy engine
+- **Intelligence**: MetaCognition, IntrospectionEngine, CuriosityModule
+
+### Python Framework (`ebbiforge/`)
+- **Primitives**: Agent, Swarm, Runtime, Task, Memory
+- **Connectors**: DataSource, HTTPPoller, WebhookReceiver, RSSFeed
+- **Outputs**: OutputSink, ConsoleOutput, WebhookOutput, JSONFileOutput
+- **CLI**: demo, benchmark, example, version
+
+### Examples (`examples/`)
+| # | Name | What It Shows |
+|---|------|---------------|
+| 1 | [Hello Swarm](examples/01_hello_swarm.py) | Multi-agent pipeline + belief provenance |
+| 2 | [Evolution](examples/02_evolution.py) | 10K agents with Darwinian natural selection |
+| 3 | [Live Data](examples/03_live_data.py) | Generic HTTPPoller → swarm signals |
+| 4 | [Selective Reasoning](examples/04_selective_reasoning.py) | Two-tier: 50K Rust agents + LLM on anomaly |
+| 5 | [Compliance](examples/05_compliance.py) | PII detection + GDPR + audit trail |
+
+---
+
+## Performance
+
+Verified on standard hardware (details in [BENCHMARKS.md](BENCHMARKS.md)):
+
+| Agents | Avg Tick | Throughput |
+|--------|----------|------------|
+| 10,000 | ~0.5ms | 20M agents/sec |
+| 100,000 | ~5ms | 20M agents/sec |
+| 10,000,000 | ~500ms | 20M agents/sec |
 
 ---
 
 ## Contributing
 
-We welcome technical contributions, especially around SIMD optimizations for the T2/T3 tiers and new data feed integrations. 
+We welcome contributions! Especially around:
+- New `DataSource` connectors for different domains
+- New `OutputSink` adapters (Slack, Discord, PagerDuty)
+- SIMD optimizations for the Tier 1 engine
+- Example scripts for specific use cases
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for architectural deep dives.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 

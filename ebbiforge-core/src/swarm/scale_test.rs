@@ -1,4 +1,4 @@
-//! Real-world scale tests for OpenRustSwarm v3.1.0
+//! Real-world scale tests for Ebbiforge v3.1.0
 //!
 //! These tests allocate real memory-mapped arrays, run real spatial hash queries,
 //! compute real neighbor interactions (cohesion, separation, surprise propagation),

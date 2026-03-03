@@ -1,4 +1,4 @@
-# Contributing to OpenRustSwarm
+# Contributing to Ebbiforge
 
 We are looking for engineers interested in pushing the boundaries of large-scale agent simulations. Here is how to get involved.
 
@@ -6,8 +6,8 @@ We are looking for engineers interested in pushing the boundaries of large-scale
 
 ### Rust Engine
 ```bash
-git clone https://github.com/juyterman1000/openrustswarm.git
-cd openrustswarm/openrustswarm-core
+git clone https://github.com/juyterman1000/ebbiforge.git
+cd ebbiforge/ebbiforge-core
 cargo build --release
 cargo test
 ```

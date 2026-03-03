@@ -1,20 +1,20 @@
-# OpenRustSwarm Core
+# Ebbiforge Core
 
 **High-performance multi-agent runtime built in Rust with Python bindings.**
 
-OpenRustSwarm Core is the engine behind the OpenRustSwarm framework. It is designed for deploying scalable agent societies using data-oriented architecture and biological memory models.
+Ebbiforge Core is the engine behind the Ebbiforge framework. It is designed for deploying scalable agent societies using data-oriented architecture and biological memory models.
 
 ## Build from Source
 
 ```bash
-cd openrustswarm-core
+cd ebbiforge-core
 cargo build --release
 ```
 
 ## Quick Start
 
 ```python
-import openrustswarm_core as ors
+import ebbiforge_core as ors
 
 # Initialize a production swarm with 10,000 full-fidelity agents
 graph = ors.AgentGraphPy()

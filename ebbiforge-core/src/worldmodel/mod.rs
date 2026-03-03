@@ -16,6 +16,7 @@ pub mod dynamics;
 pub mod encoder;
 pub mod geometric;
 pub mod planner;
+pub mod trainer;
 
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,7 @@ pub use dynamics::AutoregressivePredictor;
 pub use encoder::LatentEncoder;
 pub use geometric::GeometricEncoder;
 pub use planner::PlanningEngine;
+pub use trainer::TrajectoryBuffer;
 
 /// Latent state representation (compressed context)
 #[derive(Clone, Debug, Serialize, Deserialize)]

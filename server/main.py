@@ -65,7 +65,7 @@ embedding_model = None
 in_memory_history = []  # Fallback when no vector store
 
 try:
-    from cogops_core import AgentGraphPy, HistoryBuffer, TrajectoryPoint, Agent, PIIRedactor
+    from ebbiforge_core import AgentGraphPy, HistoryBuffer, TrajectoryPoint, Agent, PIIRedactor
     graph = AgentGraphPy()
     default_agent = Agent(name="Assistant", instructions="Helpful AI.")
     graph.register_agent(default_agent)
@@ -76,7 +76,7 @@ except Exception as e:
 
 # Optional: Vector store + embeddings
 try:
-    from cogops_core import DragonflyStore, RemoteVectorStore
+    from ebbiforge_core import DragonflyStore, RemoteVectorStore
     from fastembed import TextEmbedding
     memory_store = RemoteVectorStore("http://localhost:6334", "cogops_memory_local_base", 768)
     embedding_model = TextEmbedding(model_name="BAAI/bge-base-en-v1.5")
@@ -279,7 +279,7 @@ def chat(request: ChatRequest):
 
     if graph:
         try:
-            from cogops_core import HistoryBuffer, TrajectoryPoint
+            from ebbiforge_core import HistoryBuffer, TrajectoryPoint
             buffer = HistoryBuffer()
             if ctx: buffer.add(TrajectoryPoint(1, "System", f"Context:\n{ctx}"))
             buffer.add(TrajectoryPoint(2, "User", request.message))

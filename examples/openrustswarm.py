@@ -1,11 +1,11 @@
 """
-OpenRustSwarm — High-level Python API wrapping the Rust cogops_core engine.
+Ebbiforge — High-level Python API wrapping the Rust ebbiforge_core engine.
 
 These classes provide Pythonic interfaces over the compiled Rust bindings.
 All computation happens in the Rust engine — zero Python fallbacks.
 """
-import cogops_core as ors
-from cogops_core import ProductionTensorSwarm, SharedMemoryStore, AgentGraphPy, HistoryBuffer
+import ebbiforge_core as ors
+from ebbiforge_core import ProductionTensorSwarm, SharedMemoryStore, AgentGraphPy, HistoryBuffer
 
 
 class Swarm(ProductionTensorSwarm):

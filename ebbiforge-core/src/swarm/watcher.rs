@@ -1,4 +1,4 @@
-//! OpenRustSwarm 'Subconscious' Watcher
+//! Ebbiforge 'Subconscious' Watcher
 //! 
 //! Ingests real-world signals into agent states at scale.
 //! Triggers "Surprise" ripples for OpenClaw alerts.

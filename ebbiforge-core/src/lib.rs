@@ -128,7 +128,7 @@ pub fn setup_logging(level: Option<String>) {
 
 /// Python module initialization
 #[pymodule]
-fn cogops_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn ebbiforge_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Core types
     m.add_class::<TrajectoryPoint>()?;
     m.add_class::<HistoryBuffer>()?;
@@ -214,6 +214,10 @@ fn cogops_core(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // v9 Geometric & Diffusion
     m.add_class::<worldmodel::GeometricEncoder>()?;
     m.add_class::<worldmodel::DiffusionPredictor>()?;
+
+    // Trajectory Training (Predictive Learning)
+    m.add_class::<worldmodel::TrajectoryBuffer>()?;
+    m.add_class::<worldmodel::dynamics::TrainStats>()?;
 
     // v10 Self-Evolution (MetaAgent)
     m.add_class::<evolution::EvolutionConfig>()?;

@@ -1,11 +1,11 @@
 [package]
-name = "openrustswarm-core"
+name = "ebbiforge-core"
 version = "3.1.0"
 edition = "2021"
 description = "High-performance AI Agent Runtime — 100M agent scale"
 
 [lib]
-name = "openrustswarm_core"
+name = "ebbiforge_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
@@ -18,7 +18,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Python Bindings
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module"] }
 
 # Utilities
 anyhow = "1.0"

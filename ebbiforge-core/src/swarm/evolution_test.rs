@@ -8,8 +8,8 @@
 //! - Scale: evolution under load with 1M agents
 //! - Invariants: health/surprise/refractory bounds, gene clamping
 //!
-//! Run: cargo test -p openrustswarm-core evolution_test -- --nocapture
-//! Run ignored: cargo test --release -p openrustswarm-core evolution_test -- --nocapture --ignored
+//! Run: cargo test -p ebbiforge-core evolution_test -- --nocapture
+//! Run ignored: cargo test --release -p ebbiforge-core evolution_test -- --nocapture --ignored
 
 #[cfg(test)]
 mod tests {

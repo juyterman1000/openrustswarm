@@ -14,13 +14,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Check
-        working-directory: openrustswarm-core
+        working-directory: ebbiforge-core
         run: cargo check --all-targets
       - name: Format
-        working-directory: openrustswarm-core
+        working-directory: ebbiforge-core
         run: cargo fmt -- --check
       - name: Test
-        working-directory: openrustswarm-core
+        working-directory: ebbiforge-core
         run: cargo test
 
   web:

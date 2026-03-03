@@ -1,4 +1,4 @@
-# OpenRustSwarm Benchmarks
+# Ebbiforge Benchmarks
 
 This document details the methodology, environment, and results for the performance claims made in this repository. Specifically, we focus on the **Level of Detail (LOD)** architecture used to scale the simulation to 10,000,000 agents.
 
@@ -40,10 +40,10 @@ LLMs (specifically Gemini 2.5 Flash) are only invoked in **Tier 4 (Heavy)** mode
 You can run the same benchmark on your local machine if you have the Rust toolchain installed:
 
 ```bash
-cd openrustswarm-core
+cd ebbiforge-core
 cargo build --release
 cd ..
-PYTHONPATH=$PYTHONPATH:./openrustswarm-core/target/release python3 test_10m_scale.py
+PYTHONPATH=$PYTHONPATH:./ebbiforge-core/target/release python3 test_10m_scale.py
 ```
 
 *Note: You may need to adjust the agent count in `test_10m_scale.py` if your machine has less than 16GB of RAM.*

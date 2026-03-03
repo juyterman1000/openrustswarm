@@ -4,7 +4,7 @@ import os
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-import cogops_core
+import ebbiforge_core
 
 app = FastAPI()
 
@@ -18,8 +18,8 @@ class DemoSession:
 
     def reset(self):
         # Initialize agents using Rust engine with proper config
-        world_config = cogops_core.WorldModelConfig(ebbinghaus_decay_rate=0.1, grid_size=(1000, 1000))
-        self.swarm = cogops_core.ProductionTensorSwarm(agent_count=1000, world_config=world_config)
+        world_config = ebbiforge_core.WorldModelConfig(ebbinghaus_decay_rate=0.1, grid_size=(1000, 1000))
+        self.swarm = ebbiforge_core.ProductionTensorSwarm(agent_count=1000, world_config=world_config)
 
         self.villages = []
         self.cities = []
