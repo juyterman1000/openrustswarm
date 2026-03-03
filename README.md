@@ -45,9 +45,7 @@ pip install ebbiforge
 
 ```bash
 git clone https://github.com/juyterman1000/ebbiforge.git
-cd ebbiforge
-pip install maturin
-maturin develop --release
+cd ebbiforge && pip install maturin && maturin develop --release
 ```
 
 > **Requirements**: Python 3.9+, Rust 1.75+ (for source builds)
