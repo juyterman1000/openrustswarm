@@ -62,7 +62,7 @@ impl ExperiencePack {
     #[new]
     pub fn new(source: String) -> Self {
         ExperiencePack {
-            version: "3.1.0".to_string(),
+            version: "1.0.0".to_string(),
             source,
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

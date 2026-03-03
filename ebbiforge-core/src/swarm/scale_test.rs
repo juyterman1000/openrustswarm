@@ -1,4 +1,4 @@
-//! Real-world scale tests for Ebbiforge v3.1.0
+//! Real-world scale tests for Ebbiforge v1.0.0
 //!
 //! These tests allocate real memory-mapped arrays, run real spatial hash queries,
 //! compute real neighbor interactions (cohesion, separation, surprise propagation),
@@ -34,7 +34,7 @@ mod tests {
     fn scale_100m_mmap_allocation() {
         let sep = "=".repeat(80);
         println!("\n{}", sep);
-        println!("  OPENRUSTSWARM v3.1.0 — 100M AGENT MMAP TEST");
+        println!("  EBBIFORGE v1.0.0 — 100M AGENT MMAP TEST");
         println!("{}\n", sep);
 
         let rss_before = get_rss_mb();
@@ -88,7 +88,7 @@ mod tests {
     fn scale_1m_full_pipeline() {
         let sep = "=".repeat(80);
         println!("\n{}", sep);
-        println!("  OPENRUSTSWARM v3.1.0 — 1M FULL PIPELINE TEST");
+        println!("  EBBIFORGE v1.0.0 — 1M FULL PIPELINE TEST");
         println!("  Real neighbor queries, real pheromone diffusion, real physics");
         println!("{}\n", sep);
 

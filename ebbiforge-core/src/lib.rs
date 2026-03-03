@@ -1,4 +1,4 @@
-//! CogOps Core v3.0.0 - High-Performance AI Agent Runtime
+//! CogOps Core v1.0.0 - High-Performance AI Agent Runtime
 //!
 //! This library provides the core infrastructure for building and running
 //! autonomous AI agents with a focus on safety, memory efficiency (zero-copy),

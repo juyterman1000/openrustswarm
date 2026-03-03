@@ -4,14 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "ebbiforge"
-version = "0.1.0"
+version = "1.0.0"
 description = "High-performance multi-agent AI framework — 100M agent scale, selective LLM reasoning"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-keywords = ["ai", "agents", "swarm", "llm", "multi-agent", "orchestration", "ebbinghaus"]
+keywords = ["ai", "agents", "swarm", "llm", "multi-agent", "orchestration", "world-model", "dynamics"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Rust",
