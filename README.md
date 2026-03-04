@@ -31,34 +31,72 @@
 
 **The key idea**: 99.99% of agents run in Rust at zero cost. Only when the swarm detects something interesting does an LLM get called. This is *selective reasoning* — the LLM is a consultant, not a worker.
 
+## What is Ebbiforge?
+
+Ebbiforge is a **hybrid multi-agent intelligence framework** designed to solve the cost and scaling limits of traditional LLM agent swarms.
+
+Instead of running every agent explicitly as an expensive LLM prompt, Ebbiforge splits intelligence into a **Two-Tier Architecture**:
+1. **The Nervous System (Rust API):** A blazing-fast Rust engine that handles 100M+ agents reacting strictly to physical rules, environmental variables, and memory states at zero API cost.
+2. **The Conscious Brain (Python API):** A standard ReAct LLM loop (like Langchain/CrewAI) that is *only* triggered selectively when the Rust swarm detects an anomaly that requires higher-order reasoning.
+
+The objective is to allow massive swarms to compute continuously and interact with live data streams for free, reserving LLMs as selective consultants rather than individual workers.
+
 ---
 
-## Installation
+## 🗺️ Monorepo Architecture Map
 
-Pick **one** of the two options below:
+Ebbiforge is a large monorepo. Here is how the pieces fit together:
 
-### Option A: pip install (recommended)
+*   **`ebbiforge-core/` (Rust):** The ultra-fast core engine. Handles Mmap memory, Spatial Hashes, SIRS epidemiology, and the Autoregressive World Model.
+*   **`ebbiforge/` & `examples/` (Python):** The high-level API and bindings that wrap the Rust engine. This is where you write your LLM logic, connectors, and define your Swarm. 
+*   **`web/` & `server/` (TypeScript & FastAPI):** A real-time visual dashboard built in Next.js to monitor your swarms, along with its dedicated FastAPI backend.
+*   **`cogops-wasm/`:** Experimental WebAssembly ports for running swarm logic directly in the browser.
 
+---
+
+## 🚦 Choose Your Path (Installation)
+
+Because Ebbiforge bridges multiple ecosystems, your setup depends on your role.
+
+> **💡 Can Python devs use the core Rust engine?** 
+> *Yes! When you `pip install ebbiforge`, the entire Rust engine is already pre-compiled inside the Python wheel. You get 100% of the Rust performance without ever installing the Rust toolchain.*
+
+> **💡 Can UI/Web developers use the core features via NPM?**
+> *Yes, you can run the visual dashboard with standard `npm run dev`. To connect it to your agents, the Next.js app communicates via REST/WebSockets to the Python `server/`, which in turn leverages the Rust core.*
+
+### Path A: AI / Python Developers (Recommended)
+You just want to build swarms and use LLMs. The Rust engine is totally hidden from you.
 ```bash
 pip install ebbiforge
 ```
 
-Everything is included — the Rust engine comes pre-compiled in the wheel. No Rust toolchain needed.
-
-### Option B: Build from source (for contributors)
-
+### Path B: Core / Rust Contributors
+You want to hack on the high-performance memory engine, world model, or C++ bindings.
 ```bash
 git clone https://github.com/juyterman1000/ebbiforge.git
 cd ebbiforge && pip install maturin && maturin develop --release
 ```
+*(Requires Python 3.9+ and Rust 1.75+)*
 
-Requires Python 3.9+ and Rust 1.75+. Use this if you want to modify the Rust engine or contribute to the project.
+### Path C: UI / Fullstack Developers
+You want to run, modify, or extend the real-time visual dashboard.
+```bash
+# Terminal 1: Start the Swarm Backend
+cd server
+pip install -r requirements.txt
+python main.py
+
+# Terminal 2: Start the Next.js UI
+cd web
+npm install
+npm run dev
+```
 
 ---
 
 ## Quick Start
 
-### Hello Swarm (5 lines)
+### Hello Swarm (5 lines in Python)
 
 ```python
 from ebbiforge import Agent, Swarm, Task
