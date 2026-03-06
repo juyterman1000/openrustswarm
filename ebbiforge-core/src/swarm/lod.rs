@@ -128,17 +128,17 @@ impl ProductionTensorSwarm {
         config: Option<crate::swarm::SwarmConfig>,
         memory_mode: &str,
         rl_mode: &str,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        Ok(Self {
             dormant_pool: Vec::new(),
             simplified: SimplifiedPool::new(),
-            active: TensorSwarm::new(agent_count, world_config, config, memory_mode, rl_mode),
+            active: TensorSwarm::new(agent_count, world_config, config, memory_mode, rl_mode)?,
             global_triggers: 0,
             tick_count: 0,
             wavefront_center: None,
             wavefront_radius: 0.0,
             initial_dormant_count: 0,
-        }
+        })
     }
 
     /// Add a batch of dormant agents (e.g. initially populating the 10M world)
@@ -170,8 +170,8 @@ impl ProductionTensorSwarm {
             self.wavefront_radius += 15.0; // 15 units per tick expansion rate
             let r2 = self.wavefront_radius * self.wavefront_radius;
 
-            // Apply environmental shock at wavefront edge
-            self.active
+            // Apply environmental shock at wavefront edge (internal: params always valid)
+            let _ = self.active
                 .apply_environmental_shock(center, self.wavefront_radius, 0.8);
 
             // Wake dormant agents within wavefront radius
@@ -293,8 +293,8 @@ impl ProductionTensorSwarm {
     }
 
     /// Set the surprise score for a specific agent
-    pub fn set_surprise_score(&mut self, agent_idx: usize, score: f32) {
-        self.active.set_surprise_score(agent_idx, score);
+    pub fn set_surprise_score(&mut self, agent_idx: usize, score: f32) -> PyResult<()> {
+        self.active.set_surprise_score(agent_idx, score)
     }
 
     /// Get all surprise scores
@@ -303,7 +303,7 @@ impl ProductionTensorSwarm {
     }
 
     /// Get response latency for an agent
-    pub fn get_agent_response_latency(&self, agent_idx: usize) -> f32 {
+    pub fn get_agent_response_latency(&self, agent_idx: usize) -> PyResult<f32> {
         self.active.get_agent_response_latency(agent_idx)
     }
 
@@ -344,7 +344,7 @@ impl ProductionTensorSwarm {
         self.wavefront_center = Some(center);
         self.wavefront_radius = 0.0;
         // Apply initial shock at the epicenter
-        self.active.apply_environmental_shock(center, 15.0, 1.0);
+        let _ = self.active.apply_environmental_shock(center, 15.0, 1.0);
     }
 
     /// Get the fraction of dormant agents that have been awakened by the wavefront

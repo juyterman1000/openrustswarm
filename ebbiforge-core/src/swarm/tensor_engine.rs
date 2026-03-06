@@ -6,11 +6,15 @@
 use super::SwarmConfig;
 use crate::swarm::pollination::PollinatorState;
 use crate::worldmodel::{LatentState, WorldModelConfig};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use tracing::info;
+
+const VALID_MEMORY_MODES: &[&str] = &["ebbinghaus_surprise", "flat"];
+const VALID_RL_MODES: &[&str] = &["td_pollination", "none"];
 
 /// Massive Swarm using SoA (Tensor) layout
 #[pyclass]
@@ -70,7 +74,20 @@ impl TensorSwarm {
         config: Option<SwarmConfig>,
         memory_mode: &str,
         rl_mode: &str,
-    ) -> Self {
+    ) -> PyResult<Self> {
+        if !VALID_MEMORY_MODES.contains(&memory_mode) {
+            return Err(PyValueError::new_err(format!(
+                "invalid memory_mode '{}', expected one of: {:?}",
+                memory_mode, VALID_MEMORY_MODES
+            )));
+        }
+        if !VALID_RL_MODES.contains(&rl_mode) {
+            return Err(PyValueError::new_err(format!(
+                "invalid rl_mode '{}', expected one of: {:?}",
+                rl_mode, VALID_RL_MODES
+            )));
+        }
+
         let mut cfg = config.unwrap_or_default();
         cfg.population_size = agent_count;
         let w_cfg = world_config.unwrap_or_default();
@@ -78,6 +95,8 @@ impl TensorSwarm {
         // Sync SwarmConfig bounds to WorldModelConfig grid
         cfg.world_width = w_cfg.grid_size.0;
         cfg.world_height = w_cfg.grid_size.1;
+        // Wire through Ebbinghaus decay rate from WorldModelConfig
+        cfg.ebbinghaus_decay_rate = w_cfg.ebbinghaus_decay_rate;
 
         let size = cfg.population_size;
 
@@ -116,7 +135,7 @@ impl TensorSwarm {
             .for_each(|y| *y = rand::random::<f32>() * height);
 
         // Initialize vectors (SoA)
-        TensorSwarm {
+        Ok(TensorSwarm {
             config: cfg,
             ids: (0..size as u32).collect(),
             x: x_vec,
@@ -138,7 +157,7 @@ impl TensorSwarm {
             memory_mode: memory_mode.to_string(),
             rl_mode: rl_mode.to_string(),
             sectors_visited: HashSet::new(),
-        }
+        })
     }
 
     /// Initialize positions randomly
@@ -169,6 +188,7 @@ impl TensorSwarm {
         let height = self.config.world_height as f32;
         let size = self.ids.len();
         let use_flat_decay = self.memory_mode == "flat";
+        let decay_rate = self.config.ebbinghaus_decay_rate;
         let rl_enabled = self.rl_mode != "none";
 
         // Snapshot villages/cities/ambush for use in parallel closure (avoids borrow of self)
@@ -280,19 +300,26 @@ impl TensorSwarm {
                     *health *= 0.999; // Natural decay
 
                     // ---------- SURPRISE DECAY ----------
+                    // Clamp surprise to [0, 1] to prevent unbounded growth
+                    *surprise = surprise.clamp(0.0, 1.0);
                     if use_flat_decay {
                         // Flat: uniform 5% decay per tick regardless of surprise magnitude
                         *surprise *= 0.95;
                     } else {
-                        // Ebbinghaus surprise-weighted retention:
-                        // retention_per_tick = 0.95 + 0.049 * surprise
-                        //   trauma (0.95)  → retention ≈ 0.9965 → ~0.35% per tick loss
-                        //   routine (0.05) → retention ≈ 0.9525 → ~4.75% per tick loss
-                        // After 200 ticks:
-                        //   trauma:  0.95 * 0.9965^200 ≈ 0.95 * 0.497 ≈ 0.472 (retained!)
-                        //   routine: 0.05 * 0.9525^200 ≈ 0.05 * 6.7e-5 ≈ 3.4e-6 (gone)
-                        //   ratio:   0.472 / 3.4e-6 ≈ 138,000x  vs flat ratio ≈ 19x → PASSES 2× threshold
-                        let retention = 0.951 + 0.048 * *surprise;
+                        // Ebbinghaus surprise-weighted retention.
+                        // Parameterization: base = 1 - dr*0.49, sensitivity = dr*0.48
+                        //   At dr=0.10 (default): retention = 0.951 + 0.048*s  ← original formula
+                        //   At dr=0.05 (gentle):  retention = 0.9755 + 0.024*s
+                        //   At dr=0.20 (moderate): retention = 0.902 + 0.096*s
+                        //   At dr=0.80 (aggressive): retention = 0.608 + 0.384*s
+                        //
+                        // This ensures:
+                        //  1. default behavior is exactly the architecture-validated formula
+                        //  2. decay_rate varies the ratio smoothly and proportionally
+                        //  3. routine surprise never drops below practical floor at default
+                        let base = 1.0 - decay_rate * 0.49;
+                        let sensitivity = decay_rate * 0.48;
+                        let retention = base + sensitivity * *surprise;
                         *surprise *= retention;
                     }
 
@@ -487,7 +514,19 @@ impl TensorSwarm {
     }
 
     /// Force high surprise score on agents within a blast radius
-    pub fn apply_environmental_shock(&mut self, location: (f32, f32), radius: f32, intensity: f32) {
+    pub fn apply_environmental_shock(&mut self, location: (f32, f32), radius: f32, intensity: f32) -> PyResult<()> {
+        if radius < 0.0 {
+            return Err(PyValueError::new_err(format!(
+                "radius must be >= 0.0, got {}",
+                radius
+            )));
+        }
+        if !(0.0..=1.0).contains(&intensity) {
+            return Err(PyValueError::new_err(format!(
+                "intensity must be in [0.0, 1.0], got {}",
+                intensity
+            )));
+        }
         let r2 = radius * radius;
         self.x
             .par_iter_mut()
@@ -501,6 +540,7 @@ impl TensorSwarm {
                     *surprise = intensity;
                 }
             });
+        Ok(())
     }
 
     /// Provide standard simulation metrics snapshot
@@ -576,10 +616,16 @@ impl TensorSwarm {
     }
 
     /// Set the surprise score for a specific agent
-    pub fn set_surprise_score(&mut self, agent_idx: usize, score: f32) {
-        if agent_idx < self.surprise_scores.len() {
-            self.surprise_scores[agent_idx] = score;
+    pub fn set_surprise_score(&mut self, agent_idx: usize, score: f32) -> PyResult<()> {
+        if agent_idx >= self.surprise_scores.len() {
+            return Err(PyValueError::new_err(format!(
+                "agent_idx {} out of bounds (swarm has {} agents)",
+                agent_idx,
+                self.surprise_scores.len()
+            )));
         }
+        self.surprise_scores[agent_idx] = score.clamp(0.0, 1.0);
+        Ok(())
     }
 
     /// Get all surprise scores as a vector
@@ -588,14 +634,17 @@ impl TensorSwarm {
     }
 
     /// Get response latency for an agent (inversely proportional to surprise retention)
-    pub fn get_agent_response_latency(&self, agent_idx: usize) -> f32 {
-        if agent_idx < self.surprise_scores.len() {
-            // Higher retained surprise = lower latency (faster response)
-            // Ebbinghaus mode retains high-surprise events longer, producing lower latency
-            1.0 - self.surprise_scores[agent_idx]
-        } else {
-            1.0
+    pub fn get_agent_response_latency(&self, agent_idx: usize) -> PyResult<f32> {
+        if agent_idx >= self.surprise_scores.len() {
+            return Err(PyValueError::new_err(format!(
+                "agent_idx {} out of bounds (swarm has {} agents)",
+                agent_idx,
+                self.surprise_scores.len()
+            )));
         }
+        // Higher retained surprise = lower latency (faster response)
+        // Ebbinghaus mode retains high-surprise events longer, producing lower latency
+        Ok(1.0 - self.surprise_scores[agent_idx])
     }
 
     /// Get all share probabilities
