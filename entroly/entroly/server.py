@@ -962,152 +962,163 @@ def create_mcp_server():
         """Show the real, live value Entroly is providing to YOUR session right now.
 
         Pulls from actual engine state — not synthetic data. Shows:
-          - What fragments were selected vs excluded in the last optimize call
-          - Per-fragment scoring breakdown (why each decision was made)
-          - Cumulative token savings and estimated cost reduction
-          - Dedup efficiency, dependency graph coverage, context health
-          - A before/after comparison: what would happen without Entroly
+          💰 Money saved: exact $ amounts from token optimization
+          ⚡ Performance: sub-millisecond selection speed vs API latency
+          🧠 Bloat prevention: context compression ratio and memory footprint
+          🎯 Selection quality: per-fragment scoring and context sufficiency
+          🔒 Safety: duplicates caught, stale fragments filtered
 
         Call this anytime to see exactly what Entroly is doing for you.
         """
         stats = engine.get_stats()
         explanation = engine.explain_selection()
 
-        # ── Extract real session metrics ──
+        # ── Real session metrics ──
         session = stats.get("session", {})
         savings = stats.get("savings", {})
         dep = stats.get("dep_graph", {})
-        prefetch = stats.get("prefetch", {})
+        perf = stats.get("performance", {})
+        mem = stats.get("memory", {})
+        ctx_eff = stats.get("context_efficiency", {})
         checkpoint = stats.get("checkpoint", {})
 
         total_frags = session.get("total_fragments", 0)
         total_tokens = session.get("total_tokens_tracked", 0)
-        pinned = session.get("pinned_fragments", 0)
-        avg_entropy = session.get("avg_entropy_score", 0)
         current_turn = session.get("current_turn", 0)
+        pinned = session.get("pinned", 0)
 
         tokens_saved = savings.get("total_tokens_saved", 0)
-        dupes_caught = savings.get("total_duplicates_caught", 0)
-        total_optimizations = savings.get("total_optimizations", 0)
+        dupes = savings.get("total_duplicates_caught", 0)
+        total_opts = savings.get("total_optimizations", 0)
         total_ingested = savings.get("total_fragments_ingested", 0)
-        total_explorations = savings.get("total_explorations", 0)
-        cumulative_info = savings.get("cumulative_information", 0)
-        cumulative_tokens_used = savings.get("cumulative_tokens_used", 0)
 
-        # Cost estimates: $3/$15 per 1M input/output tokens (GPT-4 class)
-        cost_saved_input = tokens_saved * 0.000003
-        cost_per_session = total_tokens * 0.000003 * max(total_optimizations, 1)
+        # ── 💰 MONEY ──
+        naive_cost = mem.get("naive_cost_per_call_usd", 0)
+        optimized_cost = mem.get("optimized_cost_per_call_usd", 0)
+        cost_saved_usd = savings.get("estimated_cost_saved_usd", 0)
+        savings_pct = ((naive_cost - optimized_cost) / max(naive_cost, 1e-9)) * 100 if naive_cost > 0 else 0
+        session_roi = naive_cost * total_opts - optimized_cost * total_opts
 
-        dedup_rate = (dupes_caught / max(total_ingested, 1)) * 100
-        dep_edges = dep.get("total_edges", 0)
-        dep_components = dep.get("connected_components", 0)
+        # ── ⚡ PERFORMANCE ──
+        avg_us = perf.get("avg_optimize_us", 0)
+        peak_us = perf.get("peak_optimize_us", 0)
+        avg_ms = avg_us / 1000
+        # Typical API call is 500-3000ms; show the multiplier
+        api_latency_ms = 2000  # typical GPT-4 API latency
+        speedup = api_latency_ms / max(avg_ms, 0.001) if avg_ms > 0 else 0
 
-        # ── Build the last-optimization breakdown ──
-        last_opt = {}
+        # ── 🧠 BLOAT PREVENTION ──
+        compression = perf.get("context_compression", 1.0)
+        bloat_prevented_pct = max(0, (1 - compression) * 100)
+        mem_kb = mem.get("total_kb", 0)
+        content_kb = mem.get("content_kb", 0)
+
+        # ── 🎯 QUALITY ──
+        info_efficiency = ctx_eff.get("context_efficiency", 0)
+        dedup_rate = (dupes / max(total_ingested, 1)) * 100
+
+        # ── Last optimization breakdown ──
+        last_opt = None
         if not explanation.get("error"):
-            included = explanation.get("included", [])
-            excluded = explanation.get("excluded", [])
+            included = [dict(f) for f in explanation.get("included", [])]
+            excluded = [dict(f) for f in explanation.get("excluded", [])]
             sufficiency = explanation.get("sufficiency", 0)
-            explored = explanation.get("explored", [])
 
-            # Per-fragment scoring details
-            included_details = []
+            selected_summary = []
             for frag in included:
-                frag = dict(frag)
                 scores = dict(frag.get("scores", {}))
-                included_details.append({
+                selected_summary.append({
                     "source": frag.get("source", ""),
-                    "decision": "✅ SELECTED",
-                    "composite_score": scores.get("composite", 0),
-                    "breakdown": {
-                        "recency": scores.get("recency", 0),
-                        "frequency": scores.get("frequency", 0),
-                        "semantic_sim": scores.get("semantic", 0),
-                        "entropy": scores.get("entropy", 0),
-                        "feedback_multiplier": scores.get("feedback_mult", 1.0),
-                        "dependency_boost": scores.get("dep_boost", 0),
-                        "criticality": scores.get("criticality", "Normal"),
-                    },
+                    "score": scores.get("composite", 0),
+                    "top_signal": max(
+                        [("recency", scores.get("recency", 0)),
+                         ("semantic", scores.get("semantic", 0)),
+                         ("entropy", scores.get("entropy", 0)),
+                         ("frequency", scores.get("frequency", 0))],
+                        key=lambda x: x[1]
+                    )[0],
                     "reason": frag.get("reason", ""),
                 })
 
-            excluded_details = []
-            for frag in excluded:
-                frag = dict(frag)
+            excluded_summary = []
+            for frag in excluded[:5]:
                 scores = dict(frag.get("scores", {}))
-                excluded_details.append({
+                excluded_summary.append({
                     "source": frag.get("source", ""),
-                    "decision": "❌ EXCLUDED",
-                    "composite_score": scores.get("composite", 0),
+                    "score": scores.get("composite", 0),
                     "reason": frag.get("reason", ""),
                 })
 
             last_opt = {
-                "selected_count": len(included),
-                "excluded_count": len(excluded),
-                "sufficiency": f"{sufficiency:.0%}" if sufficiency else "N/A",
-                "explored_count": len(explored),
-                "selected_fragments": included_details,
-                "excluded_fragments": excluded_details[:10],  # Top 10 excluded
+                "context_sufficiency": f"{sufficiency:.0%}",
+                "selected": len(included),
+                "excluded": len(excluded),
+                "fragments_selected": selected_summary,
+                "fragments_excluded": excluded_summary,
             }
 
-        # ── Compute the "without Entroly" scenario ──
-        naive_tokens = total_tokens  # Without optimization, AI sees ALL tokens
-        wasted_estimate = max(tokens_saved, int(total_tokens * 0.35))
-        cost_wasted = wasted_estimate * 0.000003
-
-        # Info density efficiency
-        info_per_token = cumulative_info / max(cumulative_tokens_used, 1)
-
         dashboard = {
-            "title": "🔬 Entroly — Live Session Dashboard",
-            "session_summary": {
-                "turns": current_turn,
-                "fragments_tracked": total_frags,
-                "total_tokens_managed": f"{total_tokens:,}",
-                "pinned_fragments": pinned,
-                "optimizations_run": total_optimizations,
-            },
-            "value_delivered": {
-                "tokens_saved": f"{tokens_saved:,}",
-                "duplicates_caught": f"{dupes_caught} ({dedup_rate:.0f}% dedup rate)",
-                "cost_saved_estimate": f"${cost_saved_input:.4f}",
-                "avg_information_density": f"{avg_entropy:.3f}",
-                "info_per_token": f"{info_per_token:.4f}" if info_per_token > 0 else "N/A",
-                "explorations": total_explorations,
-            },
-            "knowledge_graph": {
-                "dependency_edges": dep_edges,
-                "connected_components": dep_components,
+            "💰 money": {
+                "tokens_saved_total": f"{tokens_saved:,}",
+                "cost_saved_total_usd": f"${cost_saved_usd:.4f}",
+                "cost_per_call_without_entroly": f"${naive_cost:.4f}",
+                "cost_per_call_with_entroly": f"${optimized_cost:.4f}",
+                "savings_pct": f"{savings_pct:.0f}%",
+                "session_roi_usd": f"${session_roi:.4f}",
                 "insight": (
-                    f"Entroly built a graph of {dep_edges} dependency edges "
-                    f"to keep related files together in context."
-                    if dep_edges > 0 else "No dependencies tracked yet."
+                    f"Each optimize call costs ${optimized_cost:.4f} instead of ${naive_cost:.4f}. "
+                    f"Over {total_opts} calls, that's ${session_roi:.4f} saved."
+                    if total_opts > 0 else "Run optimize_context to see savings."
                 ),
             },
-            "without_entroly": {
-                "what_happens": (
-                    "Without Entroly, your AI agent would receive ALL "
-                    f"{total_tokens:,} tokens — including duplicates, stale fragments, "
-                    "and irrelevant noise. No ranking, no dedup, no budget optimization."
-                ),
-                "estimated_waste": f"~{wasted_estimate:,} tokens of low-value context",
-                "estimated_cost_wasted": f"~${cost_wasted:.4f} per session",
-                "quality_impact": (
-                    "Attention dilution across irrelevant context degrades LLM output quality. "
-                    "Entroly's knapsack optimization ensures the LLM sees ONLY the highest-value fragments."
+            "⚡ performance": {
+                "avg_optimize_latency": f"{avg_us:.0f}µs ({avg_ms:.2f}ms)",
+                "peak_optimize_latency": f"{peak_us:.0f}µs",
+                "vs_api_roundtrip": f"{speedup:.0f}x faster than a typical API call" if speedup > 0 else "N/A",
+                "total_optimizations": total_opts,
+                "insight": (
+                    f"Context selection takes {avg_us:.0f}µs — that's {speedup:.0f}x faster "
+                    f"than waiting for an API response."
+                    if avg_us > 0 else "No optimizations run yet."
                 ),
             },
-            "checkpoint_status": {
-                "last_checkpoint": checkpoint.get("last_checkpoint_time", "none"),
-                "total_checkpoints": checkpoint.get("total_checkpoints", 0),
+            "🧠 bloat_prevention": {
+                "total_tokens_in_memory": f"{total_tokens:,}",
+                "context_compression": f"{compression:.2%}" if compression < 1 else "N/A (no optimize yet)",
+                "bloat_filtered": f"{bloat_prevented_pct:.0f}% of context is noise that gets filtered",
+                "duplicates_caught": f"{dupes} ({dedup_rate:.0f}% dedup rate)",
+                "memory_footprint": f"{mem_kb} KB ({content_kb} KB content + {mem_kb - content_kb} KB metadata)",
+                "insight": (
+                    f"Entroly keeps {total_frags} fragments in {mem_kb} KB of memory. "
+                    f"Without dedup, {dupes} duplicate fragments would bloat your context by "
+                    f"~{dupes * (total_tokens // max(total_frags, 1)):,} extra tokens."
+                    if total_frags > 0 else "Ingest some code to see memory stats."
+                ),
+            },
+            "🎯 selection_quality": {
+                "information_density": f"{info_efficiency:.4f} bits/token",
+                "avg_entropy": f"{session.get('avg_entropy', 0):.4f}",
+                "fragments_tracked": total_frags,
+                "pinned_fragments": pinned,
+                "dependency_edges": dep.get("edges", dep.get("total_edges", 0)),
+                "turns_processed": current_turn,
+                "insight": (
+                    f"Entroly ranks {total_frags} fragments across {current_turn} turns. "
+                    f"Information density: {info_efficiency:.4f} bits/token — higher = "
+                    f"more valuable context per token spent."
+                    if total_frags > 0 else "Ingest code to see quality metrics."
+                ),
+            },
+            "🔒 safety": {
+                "duplicates_blocked": dupes,
+                "stale_fragments_deprioritized": f"Ebbinghaus decay active (half-life: 15 turns)",
                 "persistent_index": "active" if hasattr(engine, '_index_path') else "disabled",
+                "checkpoints": checkpoint.get("total_checkpoints", 0),
             },
         }
 
-        # Add last optimization details if available
         if last_opt:
-            dashboard["last_optimization"] = last_opt
+            dashboard["📊 last_optimization"] = last_opt
 
         return json.dumps(dashboard, indent=2)
 

@@ -98,6 +98,10 @@ pub struct EntrolyEngine {
     total_explorations: u64,
     exploration_rate: f64,
 
+    // Performance telemetry — lets developers see WOW latency numbers
+    cumulative_optimize_ns: u64,   // nanoseconds across all optimize() calls
+    peak_optimize_ns: u64,         // worst-case single optimize() call
+
     // Last optimization snapshot (for explainability)
     last_optimization: Option<OptimizationSnapshot>,
 
@@ -195,6 +199,8 @@ impl EntrolyEngine {
             max_fragments,
             total_explorations: 0,
             exploration_rate: exploration_rate.clamp(0.0, 1.0),
+            cumulative_optimize_ns: 0,
+            peak_optimize_ns: 0,
             last_optimization: None,
             lsh_index: lsh::LshIndex::new(),
             context_scorer: lsh::ContextScorer::default(),
@@ -402,6 +408,7 @@ impl EntrolyEngine {
     ///
     /// Wires in: feedback loop, dependency graph, context ordering.
     pub fn optimize(&mut self, token_budget: u32, query: String) -> PyResult<PyObject> {
+        let opt_start = std::time::Instant::now();
         Python::with_gil(|py| {
             self.total_optimizations += 1;
 
@@ -832,6 +839,13 @@ impl EntrolyEngine {
             }
             py_result.set_item("selected", selected_list)?;
 
+            // Record optimize latency
+            let elapsed_ns = opt_start.elapsed().as_nanos() as u64;
+            self.cumulative_optimize_ns += elapsed_ns;
+            if elapsed_ns > self.peak_optimize_ns {
+                self.peak_optimize_ns = elapsed_ns;
+            }
+
             Ok(py_result.into())
         })
     }
@@ -996,6 +1010,42 @@ impl EntrolyEngine {
             efficiency.set_item("cumulative_information", (self.cumulative_information * 100.0).round() / 100.0)?;
             efficiency.set_item("cumulative_tokens_used", self.cumulative_tokens_used)?;
             result.set_item("context_efficiency", efficiency)?;
+
+            // Performance telemetry — the WOW numbers
+            let perf = PyDict::new(py);
+            let avg_optimize_us = if self.total_optimizations > 0 {
+                (self.cumulative_optimize_ns / self.total_optimizations as u64) as f64 / 1000.0
+            } else { 0.0 };
+            let peak_optimize_us = self.peak_optimize_ns as f64 / 1000.0;
+            perf.set_item("avg_optimize_us", (avg_optimize_us * 100.0).round() / 100.0)?;
+            perf.set_item("peak_optimize_us", (peak_optimize_us * 100.0).round() / 100.0)?;
+            perf.set_item("total_optimize_calls", self.total_optimizations)?;
+            // Context compression: how much of the raw context was select vs available
+            let compression_ratio = if total_tokens > 0 && self.cumulative_tokens_used > 0 {
+                let avg_used = self.cumulative_tokens_used as f64 / self.total_optimizations.max(1) as f64;
+                avg_used / total_tokens as f64
+            } else { 1.0 };
+            perf.set_item("context_compression", (compression_ratio * 10000.0).round() / 10000.0)?;
+            result.set_item("performance", perf)?;
+
+            // Memory footprint estimate
+            let mem = PyDict::new(py);
+            // ~200 bytes per fragment (content stored separately) + ~100 bytes LSH entry
+            let fragment_mem_bytes = self.fragments.len() * 300;
+            let content_bytes: usize = self.fragments.values().map(|f| f.content.len()).sum();
+            let total_mem = fragment_mem_bytes + content_bytes;
+            mem.set_item("fragment_metadata_kb", fragment_mem_bytes / 1024)?;
+            mem.set_item("content_kb", content_bytes / 1024)?;
+            mem.set_item("total_kb", total_mem / 1024)?;
+            mem.set_item("fragments", self.fragments.len())?;
+            // Naive bloat: if you just dumped all tokens to the LLM at $3/1M
+            let naive_cost_per_call = total_tokens as f64 * 0.000003;
+            let optimized_cost_per_call = if self.total_optimizations > 0 {
+                self.cumulative_tokens_used as f64 / self.total_optimizations as f64 * 0.000003
+            } else { naive_cost_per_call };
+            mem.set_item("naive_cost_per_call_usd", (naive_cost_per_call * 10000.0).round() / 10000.0)?;
+            mem.set_item("optimized_cost_per_call_usd", (optimized_cost_per_call * 10000.0).round() / 10000.0)?;
+            result.set_item("memory", mem)?;
 
             Ok(result.into())
         })
