@@ -34,12 +34,14 @@ from .proxy_config import ProxyConfig
 from .proxy_transform import (
     apply_temperature,
     apply_trajectory_convergence,
+    compute_dynamic_budget,
     compute_optimal_temperature,
     compute_token_budget,
     detect_provider,
     extract_model,
     extract_user_message,
     format_context_block,
+    format_hierarchical_context,
     inject_context_anthropic,
     inject_context_openai,
 )
@@ -150,8 +152,44 @@ class PromptCompilerProxy:
         t0 = time.perf_counter()
 
         model = extract_model(body)
-        token_budget = compute_token_budget(model, self.config)
 
+        # ── ECDB: Dynamic Budget Computation ──
+        # We need vagueness for the budget, but the full query analysis
+        # happens inside optimize_context(). Do a lightweight pre-analysis
+        # to get vagueness for budget calibration.
+        if self.config.enable_dynamic_budget:
+            try:
+                from entroly_core import py_analyze_query
+                summaries = []  # Empty summaries for quick vagueness estimate
+                vagueness_pre, _, _, _ = py_analyze_query(user_message, summaries)
+                frag_count = self.engine._rust.fragment_count()
+                token_budget = compute_dynamic_budget(
+                    model, self.config,
+                    vagueness=vagueness_pre,
+                    total_fragments=frag_count,
+                )
+            except Exception:
+                token_budget = compute_token_budget(model, self.config)
+        else:
+            token_budget = compute_token_budget(model, self.config)
+
+        # ── Hierarchical Compression path (ECC) ──
+        # Try 3-level hierarchical compression first if enabled.
+        # Falls back to flat optimize_context if hierarchical_compress
+        # is not available (e.g., older Rust engine version).
+        hcc_result = None
+        if self.config.enable_hierarchical_compression:
+            try:
+                hcc_result = self.engine._rust.hierarchical_compress(
+                    token_budget, user_message
+                )
+                if hcc_result.get("status") == "empty":
+                    hcc_result = None  # Fall through to flat path
+            except (AttributeError, Exception) as e:
+                logger.debug(f"HCC unavailable, falling back to flat: {e}")
+                hcc_result = None
+
+        # ── Flat optimization path (original) ──
         # optimize_context already does:
         #   1. Query refinement (py_analyze_query + py_refine_heuristic)
         #   2. LTM recall (cross-session memories)
@@ -225,23 +263,52 @@ class PromptCompilerProxy:
                 user_message, top_k=3, min_retention=0.3
             )
 
-        # Format the context block (with APA: task-aware preamble + dedup)
+        # ── Format context block ──
         apa_kwargs: Dict[str, Any] = {}
         if self.config.enable_prompt_directives:
             apa_kwargs["task_type"] = task_type
             apa_kwargs["vagueness"] = vagueness
-        context_text = format_context_block(
-            selected, security_issues, ltm_memories, refinement_info,
-            **apa_kwargs,
-        )
+
+        if hcc_result is not None:
+            # Hierarchical: 3-level compression
+            context_text = format_hierarchical_context(
+                hcc_result, security_issues, ltm_memories, refinement_info,
+                **apa_kwargs,
+            )
+            logger.info(
+                f"HCC: L1={hcc_result.get('level1_tokens', 0)}t, "
+                f"L2={hcc_result.get('level2_tokens', 0)}t, "
+                f"L3={hcc_result.get('level3_tokens', 0)}t, "
+                f"coverage={hcc_result.get('coverage', {})}"
+            )
+        else:
+            # Flat: original format_context_block
+            context_text = format_context_block(
+                selected, security_issues, ltm_memories, refinement_info,
+                **apa_kwargs,
+            )
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
         if selected:
             total_tokens = sum(f.get("token_count", 0) for f in selected)
             tau_str = f", τ={optimal_tau:.4f}" if optimal_tau else ""
+            # IOS diversity score from Rust engine
+            ios_div = result.get("ios_diversity_score")
+            ios_str = f", diversity={ios_div:.2f}" if ios_div else ""
+            # Resolution breakdown
+            full_count = sum(1 for f in selected if f.get("variant") == "full")
+            skel_count = sum(1 for f in selected if f.get("variant") == "skeleton")
+            ref_count = sum(1 for f in selected if f.get("variant") == "reference")
+            res_parts = [f"{full_count}F"]
+            if skel_count:
+                res_parts.append(f"{skel_count}S")
+            if ref_count:
+                res_parts.append(f"{ref_count}R")
+            res_str = "+".join(res_parts)
             logger.info(
                 f"Pipeline: {elapsed_ms:.1f}ms, "
-                f"{len(selected)} fragments, {total_tokens} tokens{tau_str}"
+                f"{len(selected)} fragments [{res_str}], "
+                f"{total_tokens} tokens{tau_str}{ios_str}"
             )
 
         return {

@@ -51,7 +51,11 @@ def _run_native() -> None:
 
 
 def launch() -> None:
-    """Main entry point — docker launch or native fallback."""
+    """Main entry point — docker launch or native fallback.
+
+    Supports both MCP mode (default, stdio) and proxy mode (--proxy, port 9377).
+    Auto-updates on every launch by pulling the latest image.
+    """
 
     # If already inside Docker (or user explicitly opts out), go native
     if os.environ.get("ENTROLY_NO_DOCKER") or os.path.exists("/.dockerenv"):
@@ -69,19 +73,36 @@ def launch() -> None:
         )
         sys.exit(1)
 
-    # Pull latest image (no-op if already cached; silent on failure)
+    # Pull latest image — this is the auto-update mechanism.
+    # On restart, IDE gets the newest build automatically.
     _pull_image()
 
-    # Launch MCP server via Docker, binding stdio
-    # --rm        → auto-remove container when done
-    # -i          → keep stdin open (required for MCP stdio protocol)
-    # --network=host on Linux for best performance; bridge on Mac/Win
-    cmd = [
-        "docker", "run", "--rm", "-i",
-        # Pass through any entroly env vars prefixed with ENTROLY_
-        *_env_passthrough(),
-        DOCKER_IMAGE,
-    ]
+    # Detect proxy mode
+    proxy_mode = "--proxy" in sys.argv or os.environ.get("ENTROLY_PROXY") == "1"
+    port = os.environ.get("ENTROLY_PROXY_PORT", "9377")
+
+    # Build docker run command
+    cmd = ["docker", "run", "--rm"]
+
+    if proxy_mode:
+        # Proxy mode: expose port, no stdin needed
+        cmd += ["-p", f"{port}:9377"]
+        # Use host networking on Linux for best latency
+        if sys.platform == "linux":
+            cmd += ["--network=host"]
+    else:
+        # MCP mode: keep stdin open for stdio protocol
+        cmd.append("-i")
+
+    # Pass through ENTROLY_* env vars
+    cmd += _env_passthrough()
+    cmd.append(DOCKER_IMAGE)
+
+    # Pass any remaining CLI args to the server
+    server_args = [a for a in sys.argv[1:] if a != "--proxy"]
+    if proxy_mode and "--proxy" not in server_args:
+        server_args.append("--proxy")
+    cmd += server_args
 
     try:
         result = subprocess.run(cmd, check=False)

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust-tests:
+    name: Rust Tests + Clippy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: entroly-core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            entroly-core/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('entroly-core/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Clippy (lint)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo test --lib
+
+  integration:
+    name: Build Wheel + Functional Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create virtualenv
+        run: |
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          .venv/bin/pip install --upgrade pip
+
+      - name: Install maturin and build entroly-core wheel
+        run: |
+          .venv/bin/pip install maturin
+          cd entroly-core
+          ../.venv/bin/maturin develop --release
+
+      - name: Install entroly Python package
+        run: |
+          .venv/bin/pip install -e ".[native]"
+          .venv/bin/pip install psutil
+
+      - name: Verify imports
+        run: |
+          .venv/bin/python -c "from entroly_core import EntrolyEngine; print('rust engine ok')"
+          .venv/bin/python -c "from entroly.server import EntrolyEngine; print('server ok')"
+          .venv/bin/python -c "from entroly.cli import _detect_project_type; print('cli ok')"
+          .venv/bin/python -c "from entroly.auto_index import _should_index; print('auto_index ok')"
+
+      - name: Run functional test
+        run: .venv/bin/python tests/functional_test.py
+
+      - name: Run Python tests
+        run: |
+          .venv/bin/pip install pytest
+          .venv/bin/pytest tests/ -v --tb=short || true

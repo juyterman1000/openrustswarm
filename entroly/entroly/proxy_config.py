@@ -72,6 +72,27 @@ class ProxyConfig:
     enable_temperature_calibration: bool = True
     enable_trajectory_convergence: bool = True
     enable_prompt_directives: bool = True
+    enable_hierarchical_compression: bool = True
+
+    # IOS: Information-Optimal Selection
+    enable_ios: bool = True
+    enable_ios_diversity: bool = True
+    enable_ios_multi_resolution: bool = True
+
+    # ECDB: Entropy-Calibrated Dynamic Budget
+    enable_dynamic_budget: bool = True
+    ecdb_min_budget: int = 500
+    ecdb_max_fraction: float = 0.30
+    ecdb_sigmoid_steepness: float = 3.0
+    ecdb_sigmoid_base: float = 0.5
+    ecdb_sigmoid_range: float = 1.5
+    ecdb_codebase_divisor: float = 200.0
+    ecdb_codebase_cap: float = 2.0
+
+    # IOS: tunable info factors and diversity floor
+    ios_skeleton_info_factor: float = 0.70
+    ios_reference_info_factor: float = 0.15
+    ios_diversity_floor: float = 0.10
 
     # EGTC v2 coefficients (overridable by autotune daemon via tuning_config.json)
     fisher_scale: float = 0.55
@@ -109,29 +130,59 @@ class ProxyConfig:
                 os.environ.get("ENTROLY_TRAJECTORY_LAMBDA", "0.07")
             ),
         )
-        # Overlay EGTC coefficients from tuning_config.json (written by autotune)
-        config._load_egtc_from_tuning_config()
+        # Overlay tunable coefficients from tuning_config.json (written by autotune)
+        config._load_tuned_coefficients()
         return config
 
-    def _load_egtc_from_tuning_config(self) -> None:
-        """Load EGTC coefficients from tuning_config.json if present."""
+    def _load_tuned_coefficients(self) -> None:
+        """Load tunable coefficients from tuning_config.json if present.
+
+        Overlays EGTC, IOS, and ECDB params from the autotune-managed config.
+        Each param falls back to the dataclass default if absent.
+        """
         tc_path = Path(__file__).parent / "tuning_config.json"
         if not tc_path.exists():
             return
         try:
             with open(tc_path) as f:
                 tc = json.load(f)
-            egtc = tc.get("egtc", {})
-            if not egtc:
-                return
+        except Exception:
+            return  # non-critical
+
+        logger = logging.getLogger("entroly.proxy")
+
+        # EGTC coefficients
+        egtc = tc.get("egtc", {})
+        if egtc:
             if "fisher_scale" in egtc:
                 self.fisher_scale = float(egtc["fisher_scale"])
             if "trajectory_c_min" in egtc:
                 self.trajectory_c_min = float(egtc["trajectory_c_min"])
             if "trajectory_lambda" in egtc:
                 self.trajectory_lambda = float(egtc["trajectory_lambda"])
-            logging.getLogger("entroly.proxy").debug(
-                f"EGTC coefficients loaded from tuning_config.json: {egtc}"
-            )
-        except Exception:
-            pass  # non-critical: fall back to defaults
+            logger.debug(f"EGTC coefficients from tuning_config.json: {egtc}")
+
+        # IOS coefficients
+        ios = tc.get("ios", {})
+        if ios:
+            if "skeleton_info_factor" in ios:
+                self.ios_skeleton_info_factor = float(ios["skeleton_info_factor"])
+            if "reference_info_factor" in ios:
+                self.ios_reference_info_factor = float(ios["reference_info_factor"])
+            if "diversity_floor" in ios:
+                self.ios_diversity_floor = float(ios["diversity_floor"])
+            logger.debug(f"IOS coefficients from tuning_config.json: {ios}")
+
+        # ECDB coefficients
+        ecdb = tc.get("ecdb", {})
+        if ecdb:
+            for key in (
+                "min_budget", "max_fraction", "sigmoid_steepness",
+                "sigmoid_base", "sigmoid_range",
+                "codebase_divisor", "codebase_cap",
+            ):
+                attr = f"ecdb_{key}"
+                if key in ecdb and hasattr(self, attr):
+                    val = ecdb[key]
+                    setattr(self, attr, int(val) if key == "min_budget" else float(val))
+            logger.debug(f"ECDB coefficients from tuning_config.json: {ecdb}")

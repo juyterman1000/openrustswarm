@@ -13,6 +13,7 @@
 
 mod fragment;
 mod knapsack;
+mod knapsack_sds;
 mod entropy;
 mod dedup;
 mod depgraph;
@@ -23,6 +24,7 @@ mod skeleton;
 mod sast;
 mod health;
 mod query;
+mod hierarchical;
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -32,6 +34,7 @@ use serde::{Deserialize, Serialize};
 
 use fragment::{ContextFragment, compute_relevance};
 use knapsack::{knapsack_optimize, ScoringWeights};
+use knapsack_sds::{ios_select, Resolution, InfoFactors};
 use entropy::{information_score, shannon_entropy, normalized_entropy, boilerplate_ratio};
 use dedup::{simhash, hamming_distance, DedupIndex};
 use depgraph::{DepGraph, extract_identifiers};
@@ -100,6 +103,15 @@ pub struct EntrolyEngine {
 
     // Prism optimizer for advanced context selection
     prism_optimizer: PrismOptimizer,
+
+    // IOS: Information-Optimal Selection (SDS + MRK)
+    enable_ios: bool,
+    enable_ios_diversity: bool,
+    enable_ios_multi_resolution: bool,
+    // IOS tunable parameters (configurable via tuning_config.json)
+    ios_skeleton_info_factor: f64,
+    ios_reference_info_factor: f64,
+    ios_diversity_floor: f64,
 }
 
 /// Snapshot of the last optimization for explainability.
@@ -131,7 +143,9 @@ impl EntrolyEngine {
     #[pyo3(signature = (
         w_recency=0.30, w_frequency=0.25, w_semantic=0.25, w_entropy=0.20,
         decay_half_life=15, min_relevance=0.05,
-        hamming_threshold=3, exploration_rate=0.1, max_fragments=10000
+        hamming_threshold=3, exploration_rate=0.1, max_fragments=10000,
+        enable_ios=true, enable_ios_diversity=true, enable_ios_multi_resolution=true,
+        ios_skeleton_info_factor=0.70, ios_reference_info_factor=0.15, ios_diversity_floor=0.10
     ))]
     pub fn new(
         w_recency: f64,
@@ -143,6 +157,12 @@ impl EntrolyEngine {
         hamming_threshold: u32,
         exploration_rate: f64,
         max_fragments: usize,
+        enable_ios: bool,
+        enable_ios_diversity: bool,
+        enable_ios_multi_resolution: bool,
+        ios_skeleton_info_factor: f64,
+        ios_reference_info_factor: f64,
+        ios_diversity_floor: f64,
     ) -> Self {
         // Derive per-instance ID using xorshift64 on the global seed.
         // Each engine gets a unique instance_id, so fragment IDs are
@@ -180,6 +200,12 @@ impl EntrolyEngine {
             last_optimization: None,
             lsh_index: lsh::LshIndex::new(),
             context_scorer: lsh::ContextScorer::default(),
+            enable_ios,
+            enable_ios_diversity,
+            enable_ios_multi_resolution,
+            ios_skeleton_info_factor: ios_skeleton_info_factor.clamp(0.01, 0.99),
+            ios_reference_info_factor: ios_reference_info_factor.clamp(0.01, 0.99),
+            ios_diversity_floor: ios_diversity_floor.clamp(0.0, 1.0),
         }
     }
 
@@ -397,61 +423,91 @@ impl EntrolyEngine {
                 entropy: self.w_entropy,
             };
 
-            // ── Pass 1: Initial knapsack selection ──
+            // ── Dependency-aware score boosting ──
+            // First pass with basic knapsack to discover initial selection,
+            // then compute dep boosts from that selection.
             let result1 = knapsack_optimize(&frags, effective_budget, &weights, &feedback_mults);
-
-            // ── Pass 2: Dependency-aware refinement ──
-            // Compute dep boosts from initial selection
-            let selected_ids: HashSet<String> = result1.selected_indices.iter()
+            let initial_selected_ids: HashSet<String> = result1.selected_indices.iter()
                 .map(|&i| frags[i].fragment_id.clone())
                 .collect();
-            let dep_boosts = self.dep_graph.compute_dep_boosts(&selected_ids);
+            let dep_boosts = self.dep_graph.compute_dep_boosts(&initial_selected_ids);
 
-            // Apply dep boosts to unselected fragments' semantic scores
+            // Apply dep boosts to fragments' semantic scores
             let mut boosted_frags = frags.clone();
-            let mut has_boosts = false;
             for frag in boosted_frags.iter_mut() {
-                if !selected_ids.contains(&frag.fragment_id) {
+                if !initial_selected_ids.contains(&frag.fragment_id) {
                     if let Some(&boost) = dep_boosts.get(&frag.fragment_id) {
                         if boost > 0.3 {
-                            // Boost semantic score to pull in dependencies
                             frag.semantic_score = (frag.semantic_score + boost * 0.5).min(1.0);
-                            has_boosts = true;
                         }
                     }
                 }
             }
 
-            // Re-run knapsack only if deps changed scores
-            let result = if has_boosts {
-                knapsack_optimize(&boosted_frags, effective_budget, &weights, &feedback_mults)
-            } else {
-                result1
-            };
-
-            // ── ε-Greedy Exploration ──
-            // Prevent feedback-loop starvation: occasionally swap a low-scoring
-            // selected fragment with an unselected one to learn about new fragments.
-            let mut final_indices = result.selected_indices.clone();
+            // ── Core Selection: IOS (SDS+MRK) or legacy knapsack ──
+            let mut final_indices: Vec<usize>;
+            let mut skeleton_indices: Vec<usize> = Vec::new();
+            let mut skeleton_tokens_used: u32 = 0;
+            let mut ios_diversity_score: Option<f64> = None;
+            let mut ios_resolutions: HashMap<usize, Resolution> = HashMap::new();
             let mut explored_ids: Vec<String> = Vec::new();
+            let mut selection_method: &str = "ios";
 
-            if frags.len() > final_indices.len() && !final_indices.is_empty() {
-                // LCG seeded from total_optimizations (unique per call, not per turn).
-                // Bug fix: using current_turn meant the seed was constant between
-                // optimize() calls unless advance_turn() was called, causing
-                // exploration to never fire. total_optimizations increments on
-                // every call, guaranteeing unique seeds and correct ε behavior.
+            if self.enable_ios {
+                // ── IOS Path: Submodular Diversity + Multi-Resolution ──
+                let info_factors = InfoFactors {
+                    skeleton: self.ios_skeleton_info_factor,
+                    reference: self.ios_reference_info_factor,
+                };
+                let ios_result = ios_select(
+                    &boosted_frags,
+                    effective_budget,
+                    self.w_recency,
+                    self.w_frequency,
+                    self.w_semantic,
+                    self.w_entropy,
+                    &feedback_mults,
+                    self.enable_ios_diversity,
+                    self.enable_ios_multi_resolution,
+                    &info_factors,
+                    self.ios_diversity_floor,
+                );
+
+                final_indices = Vec::new();
+                for (idx, resolution) in &ios_result.selections {
+                    match resolution {
+                        Resolution::Full => final_indices.push(*idx),
+                        Resolution::Skeleton => skeleton_indices.push(*idx),
+                        Resolution::Reference => skeleton_indices.push(*idx), // References handled like skeletons in output
+                    }
+                    ios_resolutions.insert(*idx, *resolution);
+                }
+                skeleton_tokens_used = ios_result.total_tokens.saturating_sub(
+                    final_indices.iter().map(|&i| frags[i].token_count).sum::<u32>()
+                );
+                ios_diversity_score = Some(ios_result.diversity_score);
+            } else {
+                // ── Legacy Path: Standard knapsack + exploration + skeleton pass ──
+                selection_method = "legacy_knapsack";
+                let result = if dep_boosts.values().any(|&b| b > 0.3) {
+                    knapsack_optimize(&boosted_frags, effective_budget, &weights, &feedback_mults)
+                } else {
+                    result1
+                };
+
+                final_indices = result.selected_indices.clone();
+
+                // ε-Greedy Exploration
                 let lcg_val = (self.total_optimizations.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407)) % 1000;
                 let threshold = (self.exploration_rate * 1000.0) as u64;
 
-                if lcg_val < threshold {
+                if frags.len() > final_indices.len() && !final_indices.is_empty() && lcg_val < threshold {
                     let selected_set: HashSet<usize> = final_indices.iter().copied().collect();
                     let unselected: Vec<usize> = (0..frags.len())
                         .filter(|i| !selected_set.contains(i) && !frags[*i].is_pinned)
                         .collect();
 
                     if !unselected.is_empty() {
-                        // Find lowest-relevance non-pinned selected fragment
                         let mut min_rel = f64::MAX;
                         let mut min_pos = None;
                         for (pos, &idx) in final_indices.iter().enumerate() {
@@ -466,12 +522,10 @@ impl EntrolyEngine {
                         }
 
                         if let Some(pos) = min_pos {
-                            // Pick exploration candidate (deterministic from turn)
                             let explore_idx = unselected[(lcg_val as usize) % unselected.len()];
-                            // Only swap if the explored fragment fits
                             let old_tokens = frags[final_indices[pos]].token_count;
                             let new_tokens = frags[explore_idx].token_count;
-                            if new_tokens <= old_tokens + 100 { // allow 100 token slack
+                            if new_tokens <= old_tokens + 100 {
                                 explored_ids.push(frags[explore_idx].fragment_id.clone());
                                 final_indices[pos] = explore_idx;
                                 self.total_explorations += 1;
@@ -479,17 +533,9 @@ impl EntrolyEngine {
                         }
                     }
                 }
-            }
 
-            // ── Pass 3: Skeleton Substitution ──
-            // For fragments NOT selected, try to fit their skeletons into
-            // remaining budget. This gives the LLM structural awareness of
-            // files it couldn't fit in full.
-            let full_tokens: u32 = final_indices.iter().map(|&i| frags[i].token_count).sum();
-            let mut skeleton_indices: Vec<usize> = Vec::new();
-            let mut skeleton_tokens_used: u32 = 0;
-
-            {
+                // Skeleton Substitution pass
+                let full_tokens_legacy: u32 = final_indices.iter().map(|&i| frags[i].token_count).sum();
                 let selected_set: HashSet<usize> = final_indices.iter().copied().collect();
                 let mut unselected_with_skel: Vec<(usize, f64)> = (0..frags.len())
                     .filter(|i| !selected_set.contains(i))
@@ -500,12 +546,9 @@ impl EntrolyEngine {
                         (i, rel)
                     })
                     .collect();
-                // Sort by relevance descending (best candidates first)
                 unselected_with_skel.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-                let remaining_budget = effective_budget.saturating_sub(full_tokens);
-                let mut skel_budget = remaining_budget;
-
+                let mut skel_budget = effective_budget.saturating_sub(full_tokens_legacy);
                 for (idx, _rel) in unselected_with_skel {
                     if let Some(stc) = frags[idx].skeleton_token_count {
                         if stc <= skel_budget {
@@ -519,6 +562,7 @@ impl EntrolyEngine {
 
             // Track savings
             let total_available: u32 = frags.iter().map(|f| f.token_count).sum();
+            let full_tokens: u32 = final_indices.iter().map(|&i| frags[i].token_count).sum();
             let final_tokens: u32 = full_tokens + skeleton_tokens_used;
             let saved = total_available.saturating_sub(final_tokens);
             self.total_tokens_saved += saved as u64;
@@ -605,9 +649,16 @@ impl EntrolyEngine {
 
             // ── Build Python result ──
             let py_result = PyDict::new(py);
-            py_result.set_item("method", result.method)?;
+            py_result.set_item("method", selection_method)?;
             py_result.set_item("total_tokens", final_tokens)?;
-            py_result.set_item("total_relevance", (result.total_relevance * 10000.0).round() / 10000.0)?;
+            // Compute total relevance from selected fragments
+            let total_rel: f64 = final_indices.iter().chain(skeleton_indices.iter())
+                .map(|&i| {
+                    let fm = feedback_mults.get(&frags[i].fragment_id).copied().unwrap_or(1.0);
+                    compute_relevance(&frags[i], self.w_recency, self.w_frequency, self.w_semantic, self.w_entropy, fm)
+                })
+                .sum();
+            py_result.set_item("total_relevance", (total_rel * 10000.0).round() / 10000.0)?;
             py_result.set_item("selected_count", ordered_indices.len() + skeleton_indices.len())?;
             py_result.set_item("skeleton_count", skeleton_indices.len())?;
             py_result.set_item("skeleton_tokens", skeleton_tokens_used)?;
@@ -625,6 +676,10 @@ impl EntrolyEngine {
             if !explored_ids.is_empty() {
                 py_result.set_item("explored", explored_ids.clone())?;
             }
+            if let Some(div_score) = ios_diversity_score {
+                py_result.set_item("ios_diversity_score", div_score)?;
+                py_result.set_item("ios_enabled", true)?;
+            }
 
             // Selected fragment details (in LLM-optimal order)
             let selected_list = pyo3::types::PyList::empty(py);
@@ -638,28 +693,55 @@ impl EntrolyEngine {
                 let fm = feedback_mults.get(&f.fragment_id).copied().unwrap_or(1.0);
                 let rel = compute_relevance(f, self.w_recency, self.w_frequency, self.w_semantic, self.w_entropy, fm);
                 d.set_item("relevance", (rel * 10000.0).round() / 10000.0)?;
+                d.set_item("entropy_score", (f.entropy_score * 10000.0).round() / 10000.0)?;
                 let preview = if f.content.len() > 100 {
-                    format!("{}...", &f.content[..100])
+                    let mut end = 100;
+                    while end < f.content.len() && !f.content.is_char_boundary(end) {
+                        end += 1;
+                    }
+                    format!("{}...", &f.content[..end])
                 } else {
                     f.content.clone()
                 };
                 d.set_item("preview", preview)?;
                 selected_list.append(d)?;
             }
-            // Append skeleton fragments (lower priority, after full fragments)
+            // Append skeleton/reference fragments (lower priority, after full fragments)
             for &idx in &skeleton_indices {
                 let f = &frags[idx];
-                if let (Some(ref skel_content), Some(skel_tc)) = (&f.skeleton_content, f.skeleton_token_count) {
+                let resolution = ios_resolutions.get(&idx).copied().unwrap_or(Resolution::Skeleton);
+                let variant_str = resolution.as_str();
+
+                if resolution == Resolution::Reference {
+                    // Reference: just the source path, minimal tokens
+                    let d = PyDict::new(py);
+                    d.set_item("id", &f.fragment_id)?;
+                    d.set_item("source", &f.source)?;
+                    let ref_tokens = (f.source.len() as u32 / 4).max(3).min(10);
+                    d.set_item("token_count", ref_tokens)?;
+                    d.set_item("variant", variant_str)?;
+                    let fm = feedback_mults.get(&f.fragment_id).copied().unwrap_or(1.0);
+                    let rel = compute_relevance(f, self.w_recency, self.w_frequency, self.w_semantic, self.w_entropy, fm);
+                    d.set_item("relevance", (rel * 10000.0).round() / 10000.0)?;
+                    d.set_item("entropy_score", (f.entropy_score * 10000.0).round() / 10000.0)?;
+                    d.set_item("preview", format!("[ref] {}", &f.source))?;
+                    selected_list.append(d)?;
+                } else if let (Some(ref skel_content), Some(skel_tc)) = (&f.skeleton_content, f.skeleton_token_count) {
                     let d = PyDict::new(py);
                     d.set_item("id", &f.fragment_id)?;
                     d.set_item("source", &f.source)?;
                     d.set_item("token_count", skel_tc)?;
-                    d.set_item("variant", "skeleton")?;
+                    d.set_item("variant", variant_str)?;
                     let fm = feedback_mults.get(&f.fragment_id).copied().unwrap_or(1.0);
                     let rel = compute_relevance(f, self.w_recency, self.w_frequency, self.w_semantic, self.w_entropy, fm);
                     d.set_item("relevance", (rel * 10000.0).round() / 10000.0)?;
+                    d.set_item("entropy_score", (f.entropy_score * 10000.0).round() / 10000.0)?;
                     let preview = if skel_content.len() > 100 {
-                        format!("{}...", &skel_content[..100])
+                        let mut end = 100;
+                        while end < skel_content.len() && !skel_content.is_char_boundary(end) {
+                            end += 1;
+                        }
+                        format!("{}...", &skel_content[..end])
                     } else {
                         skel_content.clone()
                     };
@@ -823,6 +905,116 @@ impl EntrolyEngine {
             let result = PyDict::new(py);
             result.set_item("nodes", self.dep_graph.node_count())?;
             result.set_item("edges", self.dep_graph.edge_count())?;
+            Ok(result.into())
+        })
+    }
+
+    /// Hierarchical Context Compression — 3-level codebase compression.
+    ///
+    /// Level 1: Skeleton map of entire codebase (~5% budget)
+    /// Level 2: Expanded skeletons for dep-graph connected cluster (~25%)
+    /// Level 3: Full content of most relevant fragments (~70%)
+    ///
+    /// Novel: symbol-reachability slicing + submodular diversity + PageRank.
+    pub fn hierarchical_compress(&self, token_budget: u32, query: String) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            // Collect all fragments in a stable order
+            let mut frags: Vec<ContextFragment> = self.fragments.values().cloned().collect();
+            frags.sort_by(|a, b| a.fragment_id.cmp(&b.fragment_id));
+
+            if frags.is_empty() {
+                let result = PyDict::new(py);
+                result.set_item("status", "empty")?;
+                result.set_item("level1_map", "")?;
+                result.set_item("level2_cluster", "")?;
+                result.set_item("level3_count", 0)?;
+                return Ok(result.into());
+            }
+
+            // Find query-relevant fragments (by SimHash similarity)
+            let query_hash = dedup::simhash(&query);
+            let mut scored: Vec<(usize, f64)> = frags.iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    let dist = dedup::hamming_distance(query_hash, f.simhash);
+                    let sim = (1.0 - dist as f64 / 64.0).max(0.0);
+                    (i, sim)
+                })
+                .collect();
+            scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            // Top-K most relevant fragment IDs (seed for cluster expansion)
+            let top_k = scored.iter()
+                .take(10)
+                .filter(|(_, sim)| *sim > 0.1)
+                .map(|(i, _)| frags[*i].fragment_id.clone())
+                .collect::<Vec<_>>();
+
+            // Mean entropy for budget allocation
+            let mean_entropy = frags.iter().map(|f| f.entropy_score).sum::<f64>()
+                / frags.len() as f64;
+
+            // Run hierarchical compression
+            let hcc = hierarchical::hierarchical_compress(
+                &frags,
+                &self.dep_graph,
+                &top_k,
+                token_budget,
+                mean_entropy,
+            );
+
+            // Build Python result
+            let result = PyDict::new(py);
+            result.set_item("status", "compressed")?;
+            result.set_item("level1_map", &hcc.level1_map)?;
+            result.set_item("level1_tokens", hcc.budget_used.0)?;
+            result.set_item("level2_cluster", &hcc.level2_cluster)?;
+            result.set_item("level2_tokens", hcc.budget_used.1)?;
+            result.set_item("level3_count", hcc.level3_indices.len())?;
+            result.set_item("level3_tokens", hcc.budget_used.2)?;
+
+            // Coverage stats
+            let coverage = PyDict::new(py);
+            coverage.set_item("level1_files", hcc.coverage.0)?;
+            coverage.set_item("level2_cluster_files", hcc.coverage.1)?;
+            coverage.set_item("level3_full_files", hcc.coverage.2)?;
+            result.set_item("coverage", coverage)?;
+
+            // Total budget utilization
+            let total_used = hcc.budget_used.0 + hcc.budget_used.1 + hcc.budget_used.2;
+            result.set_item("total_tokens", total_used)?;
+            result.set_item("budget_utilization",
+                if token_budget > 0 {
+                    (total_used as f64 / token_budget as f64 * 10000.0).round() / 10000.0
+                } else { 0.0 }
+            )?;
+
+            // Selected L3 fragment details
+            let l3_list = pyo3::types::PyList::empty(py);
+            for &idx in &hcc.level3_indices {
+                let f = &frags[idx];
+                let d = PyDict::new(py);
+                d.set_item("id", &f.fragment_id)?;
+                d.set_item("source", &f.source)?;
+                d.set_item("token_count", f.token_count)?;
+                d.set_item("content", &f.content)?;
+                let preview = if f.content.len() > 100 {
+                    let mut end = 100;
+                    while end < f.content.len() && !f.content.is_char_boundary(end) {
+                        end += 1;
+                    }
+                    format!("{}...", &f.content[..end])
+                } else {
+                    f.content.clone()
+                };
+                d.set_item("preview", preview)?;
+                l3_list.append(d)?;
+            }
+            result.set_item("level3_fragments", l3_list)?;
+
+            // Cluster IDs for debugging
+            result.set_item("cluster_ids", hcc.cluster_ids)?;
+
             Ok(result.into())
         })
     }
@@ -1477,7 +1669,7 @@ mod tests {
 
     #[test]
     fn test_sufficiency_full() {
-        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.1, 10_000);
+        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.1, 10_000, true, true, true, 0.70, 0.15, 0.10);
 
         // Register a symbol in the dep graph
         engine.dep_graph.register_symbol("calculate_tax", "f1");
@@ -1508,7 +1700,7 @@ mod tests {
 
     #[test]
     fn test_exploration_rate_bounds() {
-        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.1, 10_000);
+        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.1, 10_000, true, true, true, 0.70, 0.15, 0.10);
         engine.set_exploration_rate(1.5);
         assert!((engine.exploration_rate - 1.0).abs() < 0.001);
         engine.set_exploration_rate(-0.5);
@@ -1535,7 +1727,7 @@ mod tests {
     #[test]
     fn test_recall_returns_correct_fragment_not_random() {
         use crate::dedup::simhash;
-        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.0, 10_000);
+        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.0, 10_000, true, true, true, 0.70, 0.15, 0.10);
 
         // Target: database code
         let target = "fn connect_to_database(host: &str, port: u16) -> Connection { ... }";
@@ -1594,7 +1786,7 @@ mod tests {
         use crate::dedup::simhash;
         let query = "async fn process_payment(amount: f64, currency: &str) -> Result<Receipt>";
 
-        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.0, 10_000);
+        let mut engine = EntrolyEngine::new(0.30, 0.25, 0.25, 0.20, 15, 0.05, 3, 0.0, 10_000, true, true, true, 0.70, 0.15, 0.10);
         let query_fp = simhash(query);
 
         // Varying content: exact match, near match, unrelated

@@ -1,5 +1,14 @@
-# Stage 1: Build Rust extension — python:3.12 base ensures cp312 wheel ABI match
-FROM python:3.12 AS builder
+# ═══════════════════════════════════════════════════════════════════════════
+# Entroly Docker Image — Multi-platform (amd64 + arm64)
+#
+# Build:  docker build -f Dockerfile.entroly -t entroly .
+# Run:    docker run --rm -p 9377:9377 entroly
+#
+# CI publishes to ghcr.io/juyterman1000/entroly:latest
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Stage 1: Build Rust extension
+FROM python:3.13 AS builder
 
 WORKDIR /build
 
@@ -17,22 +26,51 @@ COPY entroly-core/ ./entroly-core/
 RUN cd entroly-core && maturin build --release -o /build/wheels/
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install the cp312 Rust wheel and mcp
+# Install the Rust wheel and runtime deps
 COPY --from=builder /build/wheels/*.whl /tmp/wheels/
-RUN pip install --no-cache-dir /tmp/wheels/*.whl "mcp>=1.0.0" \
+RUN pip install --no-cache-dir /tmp/wheels/*.whl \
+    "mcp>=1.0.0" "httpx>=0.27" "starlette>=0.37" "uvicorn>=0.30" \
     && rm -rf /tmp/wheels
 
-# Copy entroly Python package directly — no hatchling build needed
-COPY entroly/entroly/ /app/entroly/
-COPY entroly/pyproject.toml /app/
+# Copy entroly Python package (all modules)
+COPY entroly/__init__.py \
+     entroly/server.py \
+     entroly/cli.py \
+     entroly/config.py \
+     entroly/checkpoint.py \
+     entroly/prefetch.py \
+     entroly/query_refiner.py \
+     entroly/provenance.py \
+     entroly/multimodal.py \
+     entroly/adaptive_pruner.py \
+     entroly/auto_index.py \
+     entroly/autotune.py \
+     entroly/benchmark_harness.py \
+     entroly/_docker_launcher.py \
+     entroly/long_term_memory.py \
+     entroly/proxy.py \
+     entroly/proxy_config.py \
+     entroly/proxy_transform.py \
+     /app/entroly/
+
+COPY entroly/tuning_config.json /app/entroly/
+COPY pyproject.toml /app/
 COPY README.md /app/
 
 # Make the entroly package importable
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
+# Proxy mode: expose port 9377
+EXPOSE 9377
+
+# Health check: ping the proxy
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:9377/health')" || exit 1
+
+# Default: run MCP server (use --proxy for proxy mode)
 ENTRYPOINT ["python", "-m", "entroly.server"]

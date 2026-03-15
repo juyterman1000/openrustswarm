@@ -79,6 +79,25 @@ TUNABLE_PARAMS = [
     TunableParam(["sliding_window", "long_window_fraction"], 0.10, 0.50, 0.05),
     TunableParam(["prism", "learning_rate"],        0.001, 0.05, 0.005),
     TunableParam(["prism", "beta"],                 0.80, 0.99, 0.02),
+    # EGTC v2 temperature calibration coefficients
+    TunableParam(["egtc", "alpha"],                 0.5,  3.0,  0.1),
+    TunableParam(["egtc", "gamma"],                 0.3,  2.5,  0.1),
+    TunableParam(["egtc", "epsilon"],               0.1,  1.5,  0.1),
+    TunableParam(["egtc", "fisher_scale"],          0.3,  0.8,  0.05),
+    TunableParam(["egtc", "trajectory_c_min"],      0.3,  0.9,  0.05),
+    TunableParam(["egtc", "trajectory_lambda"],     0.02, 0.15, 0.01),
+    # IOS: Multi-Resolution Knapsack + Submodular Diversity Selection
+    TunableParam(["ios", "skeleton_info_factor"],    0.30, 0.90, 0.05),
+    TunableParam(["ios", "reference_info_factor"],   0.05, 0.40, 0.03),
+    TunableParam(["ios", "diversity_floor"],          0.0, 0.30, 0.02),
+    # ECDB: Entropy-Calibrated Dynamic Budget
+    TunableParam(["ecdb", "min_budget"],             200, 1000, 50, is_integer=True),
+    TunableParam(["ecdb", "max_fraction"],          0.10, 0.50, 0.03),
+    TunableParam(["ecdb", "sigmoid_steepness"],      1.0, 6.0,  0.3),
+    TunableParam(["ecdb", "sigmoid_base"],           0.2, 1.0,  0.1),
+    TunableParam(["ecdb", "sigmoid_range"],          0.5, 3.0,  0.2),
+    TunableParam(["ecdb", "codebase_divisor"],       50,  500,  25),
+    TunableParam(["ecdb", "codebase_cap"],           1.0, 4.0,  0.2),
 ]
 
 
